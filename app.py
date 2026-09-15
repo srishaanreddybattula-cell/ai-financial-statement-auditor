@@ -144,6 +144,33 @@ if submitted:
     else:
         st.warning("Not enough annual data was available to display financial trends.")
 
+    st.header("Historical anomaly review")
+    historical_anomalies = result.get("historical_anomalies", [])
+    growth_accelerations = result.get("growth_accelerations", [])
+
+    if historical_anomalies:
+        st.warning(
+            f"{len(historical_anomalies)} historical revenue-growth anomaly/anomalies were identified for further review."
+        )
+        for anomaly in historical_anomalies:
+            with st.expander(f"{anomaly['year']} — unusual revenue growth"):
+                st.write(f"**Revenue growth:** {anomaly['growth']:.2f}%")
+                st.write(f"**Historical z-score:** {anomaly['z_score']:.2f}")
+                st.write(anomaly["message"])
+    else:
+        st.success("No historical revenue-growth anomalies were identified by the current model.")
+
+    if growth_accelerations:
+        st.write("**Large changes in annual growth rate**")
+        for acceleration in growth_accelerations:
+            st.write(
+                f"- {acceleration['year']}: growth changed by "
+                f"{acceleration['growth_change']:.2f} percentage points "
+                f"({acceleration['prior_growth']:.2f}% → {acceleration['growth']:.2f}%)."
+            )
+    else:
+        st.caption("No large year-over-year changes in revenue growth were identified by the current threshold.")
+
     st.header("Risk dimensions")
     risk_dimensions = result["risk_dimensions"]
     risk_rows = [
