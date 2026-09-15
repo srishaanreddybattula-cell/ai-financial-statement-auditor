@@ -102,15 +102,22 @@ def generate_findings(result):
     topics = result.get("accounting_topics", {})
     if policy and topics:
         for topic, analysis in topics.items():
-            if analysis.get("judgment") and analysis.get("uncertainty"):
+            if (
+                analysis.get("judgment")
+                and analysis.get("uncertainty")
+                and analysis.get("material_impact")
+            ):
                 findings.append({
                     "priority": "Medium",
-                    "title": f"Management judgment identified in {topic}",
-                    "evidence": "The latest 10-K discussion contains both judgment and uncertainty language for this topic.",
+                    "title": f"Accounting estimate requires focused review: {topic}",
+                    "evidence": (
+                        "The latest 10-K discussion contains language indicating "
+                        "management judgment, uncertainty, and potential material impact."
+                    ),
                     "why_it_matters": (
-                        "Significant judgment and uncertainty can make an accounting estimate "
-                        "more sensitive to assumptions. Review the underlying disclosure and "
-                        "the assumptions used by management."
+                        "An estimate involving judgment, uncertainty, and potential material "
+                        "impact is more sensitive to assumptions. Review the underlying "
+                        "disclosure, assumptions, and changes from prior periods."
                     ),
                 })
 
