@@ -1,3 +1,26 @@
+def assess_policy_risk(accounting_topics):
+    """Score accounting-policy disclosures only when multiple risk attributes coincide.
+
+    Normal disclosure of an accounting policy is not itself treated as elevated risk.
+    """
+    if not accounting_topics:
+        return 0
+
+    risk_score = 0
+
+    for analysis in accounting_topics.values():
+        judgment = analysis.get("judgment", False)
+        uncertainty = analysis.get("uncertainty", False)
+        material_impact = analysis.get("material_impact", False)
+
+        if judgment and uncertainty and material_impact:
+            risk_score += 20
+        elif judgment and uncertainty:
+            risk_score += 10
+
+    return min(risk_score, 100)
+
+
 def assess_risk_dimensions(indicators):
     revenue_quality = 0
     accrual_quality = 0
