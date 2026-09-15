@@ -1,5 +1,6 @@
 from analysis.accruals import assess_accrual_quality
 from analysis.accounting_policies import analyze_accounting_policies
+from analysis.anomaly_detection import detect_growth_acceleration, detect_historical_growth_anomalies
 from analysis.cash_flow import assess_cash_flow
 from analysis.risk_assessment import assess_policy_risk, assess_risk_dimensions
 from analysis.risk_score import calculate_risk_score, get_risk_category
@@ -124,6 +125,9 @@ def analyze_company(cik, submissions, company_facts):
     risk_dimensions["working_capital"] = working_capital_result["risk_score"]
     risk_dimensions["cash_flow_quality"] = cash_flow_result["risk_score"]
 
+    historical_anomalies = detect_historical_growth_anomalies(revenue)
+    growth_accelerations = detect_growth_acceleration(revenue)
+
     filing = find_latest_10k(submissions)
     policy_result = None
     topic_analysis = {}
@@ -153,6 +157,8 @@ def analyze_company(cik, submissions, company_facts):
         "accruals": accrual_result,
         "working_capital": working_capital_result,
         "cash_flow": cash_flow_result,
+        "historical_anomalies": historical_anomalies,
+        "growth_accelerations": growth_accelerations,
         "risk_dimensions": risk_dimensions,
         "risk_score": score,
         "risk_category": get_risk_category(score),
