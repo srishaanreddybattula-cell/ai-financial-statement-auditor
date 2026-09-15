@@ -1,0 +1,21 @@
+from data.ticker_map import get_cik_from_ticker
+from data.xbrl import get_company_facts
+from data.financial_data import get_financial_data
+
+
+ticker = "AAPL"
+
+cik = get_cik_from_ticker(ticker)
+company_facts = get_company_facts(cik)
+financial_data = get_financial_data(company_facts)
+
+print("APPLE FINANCIAL DATA")
+print("==============================")
+
+for name, data in financial_data.items():
+    print()
+    print(name.upper())
+    print("------------------------------")
+
+    for item in data[-3:]:
+        print(item)
