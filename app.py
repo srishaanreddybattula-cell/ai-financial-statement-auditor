@@ -2,6 +2,7 @@ import streamlit as st
 
 from analysis.findings import generate_findings
 from analysis.pipeline import analyze_company
+from analysis.peer_pipeline import add_peer_analysis
 from analysis.risk_score import calculate_score_breakdown
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
@@ -40,6 +41,7 @@ if submitted:
             submissions = get_company_submissions(cik)
             company_facts = get_company_facts(cik)
             result = analyze_company(cik, submissions, company_facts)
+            result = add_peer_analysis(result, ticker)
 
         except Exception as exc:
             st.error(f"Analysis failed: {exc}")
@@ -204,6 +206,40 @@ if submitted:
         },
     )
     st.metric("Total weighted score", f"{result['risk_score']:.2f}/100")
+
+    st.header("Peer comparison")
+    peer_comparison = result.get("peer_comparison", {})
+    peer_count = peer_comparison.get("peer_count", 0)
+
+    if peer_count == 0:
+        st.info(peer_comparison.get("message", "No peer comparison was available."))
+    else:
+        st.caption(
+            f"Compared with {peer_count} selected peers. Peer deviation is a screening signal based on differences from the peer median."
+        )
+        peer_rows = []
+        metric_labels = {
+            "receivables_to_revenue": "Receivables / Revenue",
+            "dso": "DSO",
+            "accrual_ratio": "Accrual Ratio",
+            "current_ratio": "Current Ratio",
+            "ocf_conversion": "OCF Conversion",
+        }
+        for metric, values in peer_comparison.get("metrics", {}).items():
+            peer_rows.append(
+                {
+                    "Metric": metric_labels.get(metric, metric),
+                    "Company": values["company_value"],
+                    "Peer median": values["peer_median"],
+                    "Robust z-score": values["z_score"],
+                    "Metric risk level": values["risk_level"],
+                }
+            )
+
+        if peer_rows:
+            st.dataframe(peer_rows, hide_index=True, use_container_width=True)
+        st.metric("Peer deviation risk level", f"{peer_comparison['risk_score']:.2f}/100")
+        st.caption(peer_comparison.get("message", ""))
 
     st.header("Accounting policy review")
     policy = result.get("policy_analysis")
