@@ -180,7 +180,7 @@ if submitted:
         (name.replace("_", " ").title(), value)
         for name, value in risk_dimensions.items()
     ]
-    st.dataframe(risk_rows, column_config={"0": "Dimension", "1": "Risk level"}, hide_index=True, use_container_width=True)
+    st.dataframe(risk_rows, column_config={"0": "Dimension", "1": "Risk level"}, hide_index=True, width="stretch")
 
     st.subheader("How the risk score is calculated")
     st.caption("Each dimension is capped at 100, multiplied by its model weight, and added to produce the 0–100 screening score.")
@@ -199,7 +199,7 @@ if submitted:
     st.dataframe(
         breakdown_rows,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "Risk level": st.column_config.NumberColumn(format="%.0f"),
             "Score contribution": st.column_config.NumberColumn(format="%.2f"),
@@ -255,7 +255,7 @@ if submitted:
             st.dataframe(
                 peer_rows,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "Company": st.column_config.NumberColumn(format="%.2f"),
                     "Peer median": st.column_config.NumberColumn(format="%.2f"),
