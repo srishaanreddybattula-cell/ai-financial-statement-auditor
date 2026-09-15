@@ -122,7 +122,6 @@ def analyze_company(cik, submissions, company_facts):
 
     risk_dimensions = assess_risk_dimensions(indicators)
     risk_dimensions["accrual_quality"] = accrual_result["risk_score"]
-    risk_dimensions["working_capital"] = working_capital_result["risk_score"]
     risk_dimensions["cash_flow_quality"] = cash_flow_result["risk_score"]
 
     historical_anomalies = detect_historical_growth_anomalies(revenue)
