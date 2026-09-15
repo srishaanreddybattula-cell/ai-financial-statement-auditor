@@ -1,5 +1,6 @@
 import streamlit as st
 
+from analysis.findings import generate_findings
 from analysis.pipeline import analyze_company
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
@@ -56,6 +57,22 @@ if submitted:
     st.info(
         "The score is a prototype screening model. A flagged indicator means the financial data or disclosures deserve further review; it does not establish an accounting error, fraud, or material misstatement."
     )
+
+    findings = generate_findings(result)
+
+    st.header("Key findings")
+
+    if findings:
+        st.caption(f"{len(findings)} item(s) identified for further review based on the current screening rules.")
+
+        for finding in findings:
+            with st.expander(f"{finding['priority']} priority — {finding['title']}"):
+                st.write("**Evidence**")
+                st.write(finding["evidence"])
+                st.write("**Why it matters**")
+                st.write(finding["why_it_matters"])
+    else:
+        st.success("No screening findings were triggered by the current rules.")
 
     st.header("Key financial signals")
 
