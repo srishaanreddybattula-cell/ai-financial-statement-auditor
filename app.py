@@ -4,6 +4,7 @@ from analysis.pipeline import analyze_company
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
 from data.xbrl import get_company_facts
+from data.normalizer import normalize_annual_data
 
 
 st.set_page_config(
@@ -78,6 +79,53 @@ if submitted:
         else:
             display = f"{value:.2f}"
         cols[index % 4].metric(label, display)
+
+    st.header("Financial trends")
+
+    financial_data = result["financial_data"]
+    revenue_data = normalize_annual_data(financial_data["revenue"])
+    net_income_data = normalize_annual_data(financial_data["net_income"])
+    operating_cash_flow_data = normalize_annual_data(
+        financial_data["operating_cash_flow"]
+    )
+
+    trend_years = sorted(
+        set(item["year"] for item in revenue_data)
+        & set(item["year"] for item in net_income_data)
+        & set(item["year"] for item in operating_cash_flow_data)
+    )[-5:]
+
+    trend_rows = []
+
+    for year in trend_years:
+        revenue_item = next(
+            (item for item in revenue_data if item["year"] == year), None
+        )
+        net_income_item = next(
+            (item for item in net_income_data if item["year"] == year), None
+        )
+        ocf_item = next(
+            (item for item in operating_cash_flow_data if item["year"] == year),
+            None
+        )
+
+        if revenue_item and net_income_item and ocf_item:
+            trend_rows.append(
+                {
+                    "Year": str(year),
+                    "Revenue ($B)": revenue_item["value"] / 1_000_000_000,
+                    "Net Income ($B)": net_income_item["value"] / 1_000_000_000,
+                    "Operating Cash Flow ($B)": ocf_item["value"] / 1_000_000_000,
+                }
+            )
+
+    if trend_rows:
+        import pandas as pd
+
+        trend_df = pd.DataFrame(trend_rows).set_index("Year")
+        st.line_chart(trend_df, y_label="USD billions")
+    else:
+        st.warning("Not enough annual data was available to display financial trends.")
 
     st.header("Risk dimensions")
     risk_dimensions = result["risk_dimensions"]
