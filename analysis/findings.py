@@ -98,6 +98,32 @@ def generate_findings(result):
             ),
         })
 
+    historical_anomalies = result.get("historical_anomalies", [])
+    for anomaly in historical_anomalies:
+        findings.append({
+            "priority": "Medium",
+            "title": f"Unusual historical revenue growth in {anomaly['year']}",
+            "evidence": anomaly["message"],
+            "why_it_matters": (
+                "A growth rate that is unusual relative to the company's own history "
+                "deserves context. Review business conditions, acquisitions, divestitures, "
+                "pricing, volume, and revenue-recognition disclosures for that period."
+            ),
+        })
+
+    growth_accelerations = result.get("growth_accelerations", [])
+    for anomaly in growth_accelerations:
+        findings.append({
+            "priority": "Low",
+            "title": f"Revenue growth changed sharply in {anomaly['year']}",
+            "evidence": anomaly["message"],
+            "why_it_matters": (
+                "A sharp change in growth can have ordinary business explanations. "
+                "Comparing the change with company disclosures helps distinguish a "
+                "business shift from an accounting-related issue."
+            ),
+        })
+
     policy = result.get("policy_analysis")
     topics = result.get("accounting_topics", {})
     if policy and topics:
