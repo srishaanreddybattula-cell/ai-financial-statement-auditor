@@ -6,7 +6,6 @@ from data.peer_data import collect_peer_metrics
 def add_peer_analysis(result, ticker):
     working_capital = result.get("working_capital", {})
     cash_flow = result.get("cash_flow", {})
-    accruals = result.get("accruals", {})
     financial_data = result.get("financial_data", {})
 
     revenue = financial_data.get("revenue", [])
@@ -47,6 +46,9 @@ def add_peer_analysis(result, ticker):
 
     peer_metrics = collect_peer_metrics(ticker)
     peer_comparison = calculate_peer_deviation(company_metrics, peer_metrics)
+    peer_comparison["peers"] = [
+        {"ticker": peer.get("ticker")} for peer in peer_metrics if peer.get("ticker")
+    ]
 
     result["peer_comparison"] = peer_comparison
     result["risk_dimensions"]["peer_deviation"] = peer_comparison["risk_score"]
