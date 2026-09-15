@@ -217,6 +217,14 @@ if submitted:
         st.caption(
             f"Compared with {peer_count} selected peers. Peer deviation is a screening signal based on differences from the peer median."
         )
+        peer_tickers = [
+            peer.get("ticker")
+            for peer in peer_comparison.get("peers", [])
+            if peer.get("ticker")
+        ]
+        if peer_tickers:
+            st.write(f"**Peers:** {', '.join(peer_tickers)}")
+
         peer_rows = []
         metric_labels = {
             "receivables_to_revenue": "Receivables / Revenue",
@@ -237,7 +245,17 @@ if submitted:
             )
 
         if peer_rows:
-            st.dataframe(peer_rows, hide_index=True, use_container_width=True)
+            st.dataframe(
+                peer_rows,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Company": st.column_config.NumberColumn(format="%.2f"),
+                    "Peer median": st.column_config.NumberColumn(format="%.2f"),
+                    "Robust z-score": st.column_config.NumberColumn(format="%.2f"),
+                    "Metric risk level": st.column_config.NumberColumn(format="%.0f"),
+                },
+            )
         st.metric("Peer deviation risk level", f"{peer_comparison['risk_score']:.2f}/100")
         st.caption(peer_comparison.get("message", ""))
 
