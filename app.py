@@ -2,6 +2,7 @@ import streamlit as st
 
 from analysis.findings import generate_findings
 from analysis.pipeline import analyze_company
+from analysis.risk_score import calculate_score_breakdown
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
 from data.xbrl import get_company_facts
@@ -178,6 +179,31 @@ if submitted:
         for name, value in risk_dimensions.items()
     ]
     st.dataframe(risk_rows, column_config={"0": "Dimension", "1": "Risk level"}, hide_index=True, use_container_width=True)
+
+    st.subheader("How the risk score is calculated")
+    st.caption("Each dimension is capped at 100, multiplied by its model weight, and added to produce the 0–100 screening score.")
+
+    breakdown_rows = []
+    for item in calculate_score_breakdown(risk_dimensions):
+        breakdown_rows.append(
+            {
+                "Dimension": item["dimension"].replace("_", " ").title(),
+                "Risk level": item["risk_level"],
+                "Weight": f"{item['weight']}%",
+                "Score contribution": item["contribution"],
+            }
+        )
+
+    st.dataframe(
+        breakdown_rows,
+        hide_index=True,
+        use_container_width=True,
+        column_config={
+            "Risk level": st.column_config.NumberColumn(format="%.0f"),
+            "Score contribution": st.column_config.NumberColumn(format="%.2f"),
+        },
+    )
+    st.metric("Total weighted score", f"{result['risk_score']:.2f}/100")
 
     st.header("Accounting policy review")
     policy = result.get("policy_analysis")
