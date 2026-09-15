@@ -210,13 +210,20 @@ if submitted:
     st.header("Peer comparison")
     peer_comparison = result.get("peer_comparison", {})
     peer_count = peer_comparison.get("peer_count", 0)
+    comparison_year = peer_comparison.get("comparison_year")
 
     if peer_count == 0:
         st.info(peer_comparison.get("message", "No peer comparison was available."))
     else:
-        st.caption(
-            f"Compared with {peer_count} selected peers. Peer deviation is a screening signal based on differences from the peer median."
-        )
+        if comparison_year:
+            st.caption(
+                f"Compared with {peer_count} selected peers using the same annual period: {comparison_year}. Peer deviation is a screening signal based on differences from the peer median."
+            )
+        else:
+            st.caption(
+                f"Compared with {peer_count} selected peers. Peer deviation is a screening signal based on differences from the peer median."
+            )
+
         peer_tickers = [
             peer.get("ticker")
             for peer in peer_comparison.get("peers", [])
