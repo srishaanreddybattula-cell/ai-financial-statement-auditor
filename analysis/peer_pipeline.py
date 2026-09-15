@@ -19,6 +19,12 @@ def add_peer_analysis(result, ticker):
             return None
         return sorted(data, key=lambda item: item.get("year", 0))[-1].get("value")
 
+    def latest_year(data):
+        if not data:
+            return None
+        return sorted(data, key=lambda item: item.get("year", 0))[-1].get("year")
+
+    comparison_year = latest_year(revenue)
     revenue_value = latest_value(revenue)
     receivables_value = latest_value(receivables)
     assets_value = latest_value(assets)
@@ -33,6 +39,7 @@ def add_peer_analysis(result, ticker):
         net_income_value,
         ocf_value,
         current_ratio,
+        comparison_year,
     ]):
         return result
 
@@ -44,10 +51,16 @@ def add_peer_analysis(result, ticker):
         "ocf_conversion": cash_flow.get("cash_flow_conversion"),
     }
 
-    peer_metrics = collect_peer_metrics(ticker)
+    peer_metrics = collect_peer_metrics(ticker, target_year=comparison_year)
     peer_comparison = calculate_peer_deviation(company_metrics, peer_metrics)
+    peer_comparison["comparison_year"] = comparison_year
     peer_comparison["peers"] = [
-        {"ticker": peer.get("ticker")} for peer in peer_metrics if peer.get("ticker")
+        {
+            "ticker": peer.get("ticker"),
+            "year": peer.get("year"),
+        }
+        for peer in peer_metrics
+        if peer.get("ticker")
     ]
 
     result["peer_comparison"] = peer_comparison
