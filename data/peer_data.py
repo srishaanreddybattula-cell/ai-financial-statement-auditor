@@ -28,16 +28,26 @@ def _latest(data):
     return normalized[-1]
 
 
-def extract_peer_metrics(company_facts):
+def _for_year(data, target_year):
+    normalized = normalize_annual_data(data)
+    if target_year is None:
+        return normalized[-1] if normalized else None
+    for item in normalized:
+        if item.get("year") == target_year:
+            return item
+    return None
+
+
+def extract_peer_metrics(company_facts, target_year=None):
     financial_data = get_financial_data(company_facts)
 
-    revenue = _latest(financial_data["revenue"])
-    assets = _latest(financial_data["assets"])
-    receivables = _latest(financial_data["receivables"])
-    net_income = _latest(financial_data["net_income"])
-    operating_cash_flow = _latest(financial_data["operating_cash_flow"])
-    current_assets = _latest(financial_data["current_assets"])
-    current_liabilities = _latest(financial_data["current_liabilities"])
+    revenue = _for_year(financial_data["revenue"], target_year)
+    assets = _for_year(financial_data["assets"], target_year)
+    receivables = _for_year(financial_data["receivables"], target_year)
+    net_income = _for_year(financial_data["net_income"], target_year)
+    operating_cash_flow = _for_year(financial_data["operating_cash_flow"], target_year)
+    current_assets = _for_year(financial_data["current_assets"], target_year)
+    current_liabilities = _for_year(financial_data["current_liabilities"], target_year)
 
     required = [
         revenue,
@@ -63,7 +73,10 @@ def extract_peer_metrics(company_facts):
     if revenue_value == 0 or assets_value == 0 or current_liabilities_value == 0:
         return None
 
+    comparison_year = revenue.get("year")
+
     return {
+        "year": comparison_year,
         "receivables_to_revenue": calculate_receivables_to_revenue(
             receivables_value, revenue_value
         ),
@@ -76,7 +89,7 @@ def extract_peer_metrics(company_facts):
     }
 
 
-def collect_peer_metrics(ticker):
+def collect_peer_metrics(ticker, target_year=None):
     peer_tickers = get_peer_tickers(ticker)
     peers = []
 
@@ -87,7 +100,7 @@ def collect_peer_metrics(ticker):
 
         try:
             company_facts = get_company_facts(cik)
-            metrics = extract_peer_metrics(company_facts)
+            metrics = extract_peer_metrics(company_facts, target_year=target_year)
         except Exception:
             continue
 
