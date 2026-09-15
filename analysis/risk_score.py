@@ -26,6 +26,26 @@ def calculate_risk_score(risk_dimensions):
     return round(score, 2)
 
 
+def calculate_score_breakdown(risk_dimensions):
+    breakdown = []
+    total = 0
+
+    for dimension, weight in RISK_WEIGHTS.items():
+        risk_level = risk_dimensions.get(dimension, 0)
+        risk_level = max(0, min(100, risk_level))
+        contribution = (risk_level / 100) * weight
+        total += contribution
+
+        breakdown.append({
+            "dimension": dimension,
+            "risk_level": risk_level,
+            "weight": weight,
+            "contribution": round(contribution, 2),
+        })
+
+    return breakdown
+
+
 def get_risk_category(score):
     if score <= 20:
         return "Very Low"
