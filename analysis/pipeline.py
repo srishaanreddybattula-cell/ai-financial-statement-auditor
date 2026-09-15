@@ -1,7 +1,7 @@
 from analysis.accruals import assess_accrual_quality
 from analysis.accounting_policies import analyze_accounting_policies
 from analysis.cash_flow import assess_cash_flow
-from analysis.risk_assessment import assess_risk_dimensions
+from analysis.risk_assessment import assess_policy_risk, assess_risk_dimensions
 from analysis.risk_score import calculate_risk_score, get_risk_category
 from analysis.working_capital import assess_working_capital
 from data.financial_data import get_financial_data
@@ -139,6 +139,8 @@ def analyze_company(cik, submissions, company_facts):
             topic: analyze_accounting_topic(topic_text)
             for topic, topic_text in topics.items()
         }
+
+        risk_dimensions["accounting_policy_risk"] = assess_policy_risk(topic_analysis)
 
     score = calculate_risk_score(risk_dimensions)
 
