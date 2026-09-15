@@ -22,6 +22,11 @@ def assess_policy_risk(accounting_topics):
 
 
 def assess_risk_dimensions(indicators):
+    """Map screening indicators into non-overlapping risk dimensions.
+
+    Each dimension should represent a distinct source of reporting risk rather
+    than counting the same signal in multiple dimensions.
+    """
     revenue_quality = 0
     accrual_quality = 0
     cash_flow_quality = 0
@@ -30,31 +35,29 @@ def assess_risk_dimensions(indicators):
     leverage_liquidity = 0
     peer_deviation = 0
 
+    # Revenue quality owns receivables-vs-revenue and DSO signals.
     if indicators["revenue_vs_receivables"]["flag"]:
         revenue_quality += 50
 
     if indicators["dso"]["flag"]:
         revenue_quality += 30
 
-    if indicators["cash_flow"]["flag"]:
-        cash_flow_quality += 60
-        accrual_quality += 40
+    # Accrual and cash-flow dimensions are populated from their dedicated
+    # analysis modules in the pipeline.
 
-    if indicators["free_cash_flow"]["flag"]:
-        cash_flow_quality += 30
-
+    # Working capital owns the inventory signal. Liquidity is handled by the
+    # leverage/liquidity dimension so the current ratio is not double-counted.
     if indicators["inventory_vs_revenue"]["flag"]:
         working_capital += 40
 
     if indicators["current_ratio"]["flag"]:
         leverage_liquidity += 40
-        working_capital += 20
 
     if indicators["debt"]["flag"]:
         leverage_liquidity += 40
 
     if indicators["liabilities_vs_assets"]["flag"]:
-        leverage_liquidity += 30
+        leverage_liquidity += 20
 
     return {
         "revenue_quality": min(revenue_quality, 100),
