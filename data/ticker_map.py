@@ -28,7 +28,7 @@ def _normalize_query(value):
 
 
 def _base_company_name(value):
-    """Return a normalized name with trailing legal suffixes removed."""
+    """Return a normalized name with trailing legal/descriptive suffixes removed."""
     words = _normalize_query(value).split()
     while len(words) > 1:
         if words[-1] in LEGAL_SUFFIXES:
@@ -40,8 +40,12 @@ def _base_company_name(value):
                 del words[-len(suffix):]
                 removed_compound = True
                 break
-        if not removed_compound:
-            break
+        if removed_compound:
+            continue
+        if words[-1] in NAME_DESCRIPTORS:
+            words.pop()
+            continue
+        break
     return " ".join(words)
 
 
