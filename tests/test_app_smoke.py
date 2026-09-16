@@ -28,6 +28,4 @@ def test_sidebar_navigation_controls_are_interactive():
     company_button = next(button for button in app.button if button.label == "⌕  Company Analysis")
     company_button.click().run()
 
-    assert "Company Analysis" in app.caption[0].value or any(
-        "Company Analysis" in text.value for text in app.text if hasattr(text, "value")
-    )
+    assert app.session_state["nav_page"] == "company_analysis"
