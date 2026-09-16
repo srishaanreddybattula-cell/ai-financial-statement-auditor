@@ -18,6 +18,9 @@ from data.filings import (
 from data.normalizer import normalize_annual_data
 
 
+ANNUAL_FORMS = {"10-K", "20-F", "40-F"}
+
+
 def _latest_two(data):
     normalized = normalize_annual_data(data)
     if len(normalized) < 2:
@@ -36,31 +39,45 @@ def _matching_annual_periods(data, target_year):
     return by_year.get(target_year), by_year.get(target_year - 1)
 
 
-def find_latest_10k(submissions, cik=None):
+def find_latest_annual_filing(submissions, cik=None):
+    """Find the latest annual report filed with the SEC.
+
+    10-K is used by U.S. domestic issuers, while 20-F and 40-F are used by
+    many foreign issuers. This keeps the application focused on SEC-reporting
+    companies worldwide rather than only U.S. companies.
+    """
     recent = submissions.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
 
     for i, form in enumerate(forms):
-        if form == "10-K":
-            accession_number = recent["accessionNumber"][i]
-            primary_document = recent["primaryDocument"][i]
-            filing = {
-                "accession_number": accession_number,
-                "primary_document": primary_document,
-                "filing_date": recent["filingDate"][i],
-                "report_date": recent["reportDate"][i],
-            }
+        if form not in ANNUAL_FORMS:
+            continue
 
-            if cik is not None:
-                clean_accession = accession_number.replace("-", "")
-                filing["sec_url"] = (
-                    f"https://www.sec.gov/Archives/edgar/data/"
-                    f"{int(str(cik).zfill(10))}/{clean_accession}/{primary_document}"
-                )
+        accession_number = recent["accessionNumber"][i]
+        primary_document = recent["primaryDocument"][i]
+        filing = {
+            "form": form,
+            "accession_number": accession_number,
+            "primary_document": primary_document,
+            "filing_date": recent["filingDate"][i],
+            "report_date": recent["reportDate"][i],
+        }
 
-            return filing
+        if cik is not None:
+            clean_accession = accession_number.replace("-", "")
+            filing["sec_url"] = (
+                f"https://www.sec.gov/Archives/edgar/data/"
+                f"{int(str(cik).zfill(10))}/{clean_accession}/{primary_document}"
+            )
+
+        return filing
 
     return None
+
+
+# Backward-compatible name used by existing tests/imports.
+def find_latest_10k(submissions, cik=None):
+    return find_latest_annual_filing(submissions, cik)
 
 
 def analyze_company(cik, submissions, company_facts):
@@ -160,7 +177,7 @@ def analyze_company(cik, submissions, company_facts):
     historical_anomalies = detect_historical_growth_anomalies(revenue)
     growth_accelerations = detect_growth_acceleration(revenue)
 
-    filing = find_latest_10k(submissions, cik)
+    filing = find_latest_annual_filing(submissions, cik)
     policy_result = None
     topic_analysis = {}
 
