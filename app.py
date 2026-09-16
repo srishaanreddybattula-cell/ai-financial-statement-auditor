@@ -4,6 +4,7 @@ from analysis.findings import generate_findings
 from analysis.pipeline import analyze_company
 from analysis.peer_pipeline import add_peer_analysis
 from analysis.risk_score import calculate_score_breakdown
+from analysis.data_quality import assess_data_quality
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
 from data.xbrl import get_company_facts
@@ -88,6 +89,23 @@ if submitted:
                 st.write(finding["why_it_matters"])
     else:
         st.success("No screening findings were triggered by the current rules.")
+
+    st.header("Data quality & coverage")
+    data_quality = result.get("data_quality") or assess_data_quality(result.get("financial_data", {}))
+    quality_col1, quality_col2 = st.columns(2)
+    quality_col1.metric("Core metric coverage", f"{data_quality['coverage_percent']:.0f}%")
+    quality_col2.metric("Coverage status", data_quality["status"])
+    st.progress(data_quality["coverage_percent"] / 100)
+
+    if data_quality["missing"]:
+        st.warning("Missing core metrics: " + ", ".join(data_quality["missing"]))
+    else:
+        st.success("All core metrics required by the screening model are available.")
+
+    st.caption(
+        "Coverage measures whether the core annual financial metrics needed by the screening model are available. "
+        "It does not measure the accuracy or completeness of the underlying SEC filing."
+    )
 
     st.header("Key financial signals")
 
