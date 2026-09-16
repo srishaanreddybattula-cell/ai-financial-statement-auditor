@@ -118,6 +118,19 @@ def generate_findings(result):
                     ),
                 })
 
+    goodwill = result.get("goodwill_analysis", {})
+    if goodwill.get("flag"):
+        findings.append({
+            "priority": "Medium",
+            "title": "Goodwill warrants impairment review",
+            "evidence": goodwill.get("message", "Goodwill screening thresholds were triggered."),
+            "why_it_matters": (
+                "A large goodwill balance or a material decline in goodwill can warrant review "
+                "of acquisitions, valuation assumptions, impairment testing, and related disclosures. "
+                "This screening signal does not establish an impairment or accounting error."
+            ),
+        })
+
     accrual_risk = accruals.get("risk_score", 0)
     if accrual_risk >= 50:
         findings.append({
