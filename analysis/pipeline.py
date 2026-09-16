@@ -25,6 +25,17 @@ def _latest_two(data):
     return normalized[-1], normalized[-2]
 
 
+def _matching_annual_periods(data, target_year):
+    """Return only the target and immediately prior annual periods.
+
+    This prevents stale facts, such as an old goodwill balance, from being
+    compared with the latest year's assets and treated as current data.
+    """
+    normalized = normalize_annual_data(data)
+    by_year = {item["year"]: item for item in normalized}
+    return by_year.get(target_year), by_year.get(target_year - 1)
+
+
 def find_latest_10k(submissions, cik=None):
     recent = submissions.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
@@ -76,7 +87,7 @@ def analyze_company(cik, submissions, company_facts):
     latest_capex, previous_capex = _latest_two(capital_expenditures)
     latest_current_assets, _ = _latest_two(current_assets)
     latest_current_liabilities, _ = _latest_two(current_liabilities)
-    latest_goodwill, previous_goodwill = _latest_two(goodwill)
+    latest_goodwill, previous_goodwill = _matching_annual_periods(goodwill, latest_revenue["year"])
 
     required = [
         latest_revenue,
