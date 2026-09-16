@@ -2,6 +2,7 @@ from analysis.accruals import assess_accrual_quality
 from analysis.accounting_policies import analyze_accounting_policies
 from analysis.anomaly_detection import detect_growth_acceleration, detect_historical_growth_anomalies
 from analysis.cash_flow import assess_cash_flow
+from analysis.goodwill import assess_goodwill_risk
 from analysis.risk_assessment import assess_policy_risk, assess_risk_dimensions
 from analysis.risk_score import calculate_risk_score, get_risk_category
 from analysis.working_capital import assess_working_capital
@@ -51,6 +52,7 @@ def analyze_company(cik, submissions, company_facts):
     capital_expenditures = normalize_annual_data(financial_data["capital_expenditures"])
     current_assets = normalize_annual_data(financial_data["current_assets"])
     current_liabilities = normalize_annual_data(financial_data["current_liabilities"])
+    goodwill = normalize_annual_data(financial_data["goodwill"])
 
     latest_revenue, previous_revenue = _latest_two(revenue)
     latest_net_income, previous_net_income = _latest_two(net_income)
@@ -61,6 +63,7 @@ def analyze_company(cik, submissions, company_facts):
     latest_capex, previous_capex = _latest_two(capital_expenditures)
     latest_current_assets, _ = _latest_two(current_assets)
     latest_current_liabilities, _ = _latest_two(current_liabilities)
+    latest_goodwill, previous_goodwill = _latest_two(goodwill)
 
     required = [
         latest_revenue,
@@ -120,6 +123,12 @@ def analyze_company(cik, submissions, company_facts):
     indicators["free_cash_flow"]["flag"] = (cash_flow_result["fcf_conversion"] or 0) < 70
     indicators["current_ratio"]["flag"] = (working_capital_result["current_ratio"] or 0) < 1
 
+    goodwill_result = assess_goodwill_risk(
+        latest_goodwill["value"] if latest_goodwill else None,
+        latest_assets["value"],
+        previous_goodwill["value"] if previous_goodwill else None,
+    )
+
     risk_dimensions = assess_risk_dimensions(indicators)
     risk_dimensions["accrual_quality"] = accrual_result["risk_score"]
     risk_dimensions["cash_flow_quality"] = cash_flow_result["risk_score"]
@@ -156,6 +165,7 @@ def analyze_company(cik, submissions, company_facts):
         "accruals": accrual_result,
         "working_capital": working_capital_result,
         "cash_flow": cash_flow_result,
+        "goodwill_analysis": goodwill_result,
         "historical_anomalies": historical_anomalies,
         "growth_accelerations": growth_accelerations,
         "risk_dimensions": risk_dimensions,
