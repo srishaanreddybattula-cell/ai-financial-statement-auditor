@@ -94,9 +94,7 @@ def extract_formatted_sections(html):
     if end_position == -1:
         end_position = len(html)
 
-    section_html = html[
-        start_position:end_position
-    ]
+    section_html = html[start_position:end_position]
 
     soup = BeautifulSoup(
         section_html,
@@ -108,9 +106,7 @@ def extract_formatted_sections(html):
         strip=True
     )
 
-    text = " ".join(
-        text.split()
-    )
+    text = " ".join(text.split())
 
     sections["critical_accounting_estimates"] = text
 
@@ -121,31 +117,25 @@ def extract_accounting_topics(text):
     topics = {}
 
     topic_headers = [
-    "Uncertain Tax Positions",
-    "Revenue Recognition",
-    "Goodwill",
-    "Stock-Based Compensation",
-    "Leases",
-    "Fair Value Measurements",
-    "Impairments"
+        "Uncertain Tax Positions",
+        "Revenue Recognition",
+        "Goodwill",
+        "Stock-Based Compensation",
+        "Leases",
+        "Fair Value Measurements",
+        "Impairments",
     ]
 
     if not text:
         return topics
 
     text_lower = text.lower()
-
     positions = []
 
     for header in topic_headers:
-        position = text_lower.find(
-            header.lower()
-        )
-
+        position = text_lower.find(header.lower())
         if position != -1:
-            positions.append(
-                (position, header)
-            )
+            positions.append((position, header))
 
     positions.sort()
 
@@ -155,123 +145,11 @@ def extract_accounting_topics(text):
         else:
             end_position = len(text)
 
-        topic_text = text[
-            start_position:end_position
-        ].strip()
-
+        topic_text = text[start_position:end_position].strip()
         topics[header] = topic_text
 
-        return topics
+    return topics
 
-
-    def analyze_accounting_topic(text):
-        if not text:
-            return {
-            "judgment": False,
-            "uncertainty": False,
-            "material_impact": False,
-            "evidence": []
-        }
-
-    text_lower = text.lower()
-
-    evidence = []
-
-    judgment_keywords = [
-        "significant judgment",
-        "management's expectations",
-        "requires management",
-        "requires significant judgment"
-    ]
-
-    uncertainty_keywords = [
-        "uncertain",
-        "uncertainties",
-        "no assurance",
-        "final outcome"
-    ]
-
-    material_impact_keywords = [
-        "material impact",
-        "materially affect",
-        "material effect"
-    ]
-
-    judgment = False
-    uncertainty = False
-    material_impact = False
-
-    for keyword in judgment_keywords:
-        if keyword in text_lower:
-            judgment = True
-            evidence.append(keyword)
-
-    for keyword in uncertainty_keywords:
-        if keyword in text_lower:
-            uncertainty = True
-            evidence.append(keyword)
-
-    for keyword in material_impact_keywords:
-        if keyword in text_lower:
-            material_impact = True
-            evidence.append(keyword)
-
-    return {
-        "judgment": judgment,
-        "uncertainty": uncertainty,
-        "material_impact": material_impact,
-        "evidence": evidence
-    }
-
-    text_lower = text.lower()
-
-    evidence = []
-
-    judgment_keywords = [
-        "significant judgment",
-        "management's expectations",
-        "requires management",
-        "requires significant judgment"
-    ]
-
-    uncertainty_keywords = [
-        "uncertain",
-        "uncertainties",
-        "no assurance",
-        "final outcome"
-    ]
-
-    material_impact_keywords = [
-        "material impact",
-        "materially affect",
-        "material effect"
-    ]
-
-    judgment = False
-    uncertainty = False
-    material_impact = False
-
-    for keyword in judgment_keywords:
-        if keyword in text_lower:
-            judgment = True
-            evidence.append(keyword)
-
-    for keyword in uncertainty_keywords:
-        if keyword in text_lower:
-            uncertainty = True
-            evidence.append(keyword)
-
-    for keyword in material_impact_keywords:
-        if keyword in text_lower:
-            material_impact = True
-            evidence.append(keyword)
-
-    return {
-        "judgment": judgment,
-        "uncertainty": uncertainty,
-        "material_impact": material_impact,
-        "evidence": evidence
-    }
 
 def analyze_accounting_topic(text):
     if not text:
@@ -279,31 +157,30 @@ def analyze_accounting_topic(text):
             "judgment": False,
             "uncertainty": False,
             "material_impact": False,
-            "evidence": []
+            "evidence": [],
         }
 
     text_lower = text.lower()
-
     evidence = []
 
     judgment_keywords = [
         "significant judgment",
         "management's expectations",
         "requires management",
-        "requires significant judgment"
+        "requires significant judgment",
     ]
 
     uncertainty_keywords = [
         "uncertain",
         "uncertainties",
         "no assurance",
-        "final outcome"
+        "final outcome",
     ]
 
     material_impact_keywords = [
         "material impact",
         "materially affect",
-        "material effect"
+        "material effect",
     ]
 
     judgment = False
@@ -329,5 +206,5 @@ def analyze_accounting_topic(text):
         "judgment": judgment,
         "uncertainty": uncertainty,
         "material_impact": material_impact,
-        "evidence": evidence
+        "evidence": evidence,
     }
