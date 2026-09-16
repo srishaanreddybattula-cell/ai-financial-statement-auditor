@@ -42,6 +42,7 @@ def build_excel_report(result, company_name, ticker, cik):
 
     _add_risk_dimensions_sheet(workbook, result)
     _add_findings_sheet(workbook, result)
+    _add_data_quality_sheet(workbook, result)
     _add_financial_data_sheet(workbook, result)
     _add_goodwill_sheet(workbook, result)
     _add_peer_sheet(workbook, result)
@@ -106,6 +107,21 @@ def _add_findings_sheet(workbook, result):
         ])
     if not findings:
         sheet.append(["", "No screening findings were triggered by the current rules.", "", ""])
+
+
+def _add_data_quality_sheet(workbook, result):
+    sheet = workbook.create_sheet("Data Quality")
+    sheet.append(["Metric", "Value"])
+    _style_header(sheet)
+
+    data_quality = result.get("data_quality", {})
+    sheet.append(["Core metric coverage", data_quality.get("coverage_percent", 0)])
+    sheet.append(["Coverage status", data_quality.get("status", "Unknown")])
+    sheet.append(["Missing core metrics", ", ".join(data_quality.get("missing", [])) or "None"])
+    sheet.append([
+        "Explanation",
+        "Coverage measures whether the core annual financial metrics needed by the screening model are available. It does not measure the accuracy or completeness of the underlying SEC filing.",
+    ])
 
 
 def _add_financial_data_sheet(workbook, result):
