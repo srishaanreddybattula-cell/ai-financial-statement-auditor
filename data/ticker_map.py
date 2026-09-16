@@ -45,8 +45,8 @@ def _base_company_name(value):
 
     # International issuers often use descriptors between the core name and
     # the legal suffix, e.g. Alibaba Group Holding Limited. Strip only known
-    # descriptors at the end so meaningful name words such as ASML Holding can
-    # still be preserved.
+    # descriptors at the end so unrelated names such as Apple Hospitality REIT
+    # remain distinct.
     while len(words) > 1 and words[-1] in NAME_DESCRIPTORS:
         words.pop()
 
@@ -135,6 +135,10 @@ def _is_corporate_name_match(query, title):
         return False
     if title_words[:len(query_words)] != query_words:
         return False
+
+    normalized_query = _normalize_query(query)
+    if _base_company_name(title) == normalized_query:
+        return True
 
     remaining = title_words[len(query_words):]
     if all(word in LEGAL_SUFFIXES for word in remaining):
