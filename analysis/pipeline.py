@@ -29,23 +29,14 @@ def _latest_two(data):
 
 
 def _matching_annual_periods(data, target_year):
-    """Return only the target and immediately prior annual periods.
-
-    This prevents stale facts, such as an old goodwill balance, from being
-    compared with the latest year's assets and treated as current data.
-    """
+    """Return only the target and immediately prior annual periods."""
     normalized = normalize_annual_data(data)
     by_year = {item["year"]: item for item in normalized}
     return by_year.get(target_year), by_year.get(target_year - 1)
 
 
 def find_latest_annual_filing(submissions, cik=None):
-    """Find the latest annual report filed with the SEC.
-
-    10-K is used by U.S. domestic issuers, while 20-F and 40-F are used by
-    many foreign issuers. This keeps the application focused on SEC-reporting
-    companies worldwide rather than only U.S. companies.
-    """
+    """Find the latest annual report filed with the SEC."""
     recent = submissions.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
 
@@ -87,6 +78,8 @@ def analyze_company(cik, submissions, company_facts):
     revenue = normalize_annual_data(financial_data["revenue"])
     net_income = normalize_annual_data(financial_data["net_income"])
     assets = normalize_annual_data(financial_data["assets"])
+    liabilities = normalize_annual_data(financial_data["liabilities"])
+    debt = normalize_annual_data(financial_data["debt"])
     receivables = normalize_annual_data(financial_data["receivables"])
     inventory = normalize_annual_data(financial_data["inventory"])
     operating_cash_flow = normalize_annual_data(financial_data["operating_cash_flow"])
@@ -98,12 +91,18 @@ def analyze_company(cik, submissions, company_facts):
     latest_revenue, previous_revenue = _latest_two(revenue)
     latest_net_income, previous_net_income = _latest_two(net_income)
     latest_assets, _ = _latest_two(assets)
+    latest_liabilities, _ = _latest_two(liabilities)
+    latest_debt, _ = _latest_two(debt)
     latest_receivables, previous_receivables = _latest_two(receivables)
     latest_inventory, previous_inventory = _latest_two(inventory)
     latest_ocf, previous_ocf = _latest_two(operating_cash_flow)
     latest_capex, previous_capex = _latest_two(capital_expenditures)
     latest_current_assets, _ = _latest_two(current_assets)
     latest_current_liabilities, _ = _latest_two(current_liabilities)
+
+    if latest_revenue is None:
+        raise ValueError("The SEC data does not contain a latest annual revenue fact.")
+
     latest_goodwill, previous_goodwill = _matching_annual_periods(goodwill, latest_revenue["year"])
 
     required = [
@@ -131,15 +130,27 @@ def analyze_company(cik, submissions, company_facts):
     receivables_growth = ((latest_receivables["value"] - previous_receivables["value"]) / previous_receivables["value"]) * 100
     inventory_growth = ((latest_inventory["value"] - previous_inventory["value"]) / previous_inventory["value"]) * 100
 
+    current_ratio = None
+    if latest_current_liabilities["value"] not in (None, 0):
+        current_ratio = latest_current_assets["value"] / latest_current_liabilities["value"]
+
+    debt_to_assets = None
+    if latest_debt is not None and latest_assets["value"] not in (None, 0):
+        debt_to_assets = latest_debt["value"] / latest_assets["value"]
+
+    liabilities_to_assets = None
+    if latest_liabilities is not None and latest_assets["value"] not in (None, 0):
+        liabilities_to_assets = latest_liabilities["value"] / latest_assets["value"]
+
     indicators = {
         "revenue_vs_receivables": {"flag": receivables_growth - revenue_growth >= 10},
         "dso": {"flag": False},
         "cash_flow": {"flag": False},
         "free_cash_flow": {"flag": False},
         "inventory_vs_revenue": {"flag": inventory_growth - revenue_growth >= 10},
-        "current_ratio": {"flag": False},
-        "debt": {"flag": False},
-        "liabilities_vs_assets": {"flag": False},
+        "current_ratio": {"flag": False, "value": current_ratio},
+        "debt_to_assets": {"value": debt_to_assets},
+        "liabilities_to_assets": {"value": liabilities_to_assets},
     }
 
     accrual_result = assess_accrual_quality(
@@ -162,7 +173,7 @@ def analyze_company(cik, submissions, company_facts):
     indicators["dso"]["flag"] = (working_capital_result["dso_change"] or 0) >= 10
     indicators["cash_flow"]["flag"] = (cash_flow_result["cash_flow_conversion"] or 0) < 80
     indicators["free_cash_flow"]["flag"] = (cash_flow_result["fcf_conversion"] or 0) < 70
-    indicators["current_ratio"]["flag"] = (working_capital_result["current_ratio"] or 0) < 1
+    indicators["current_ratio"]["flag"] = current_ratio is not None and current_ratio < 1
 
     goodwill_result = assess_goodwill_risk(
         latest_goodwill["value"] if latest_goodwill else None,
@@ -192,7 +203,6 @@ def analyze_company(cik, submissions, company_facts):
             topic: analyze_accounting_topic(topic_text)
             for topic, topic_text in topics.items()
         }
-
         risk_dimensions["accounting_policy_risk"] = assess_policy_risk(topic_analysis)
 
     score = calculate_risk_score(risk_dimensions)
