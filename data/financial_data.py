@@ -1,5 +1,9 @@
 from datetime import date
 
+ANNUAL_FORMS = {
+    "10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A",
+}
+
 
 def _fact_metadata(value):
     return {
@@ -10,35 +14,29 @@ def _fact_metadata(value):
     }
 
 
-def get_fact(company_facts, fact_name):
-    try:
-        fact = company_facts["facts"]["us-gaap"][fact_name]
-    except KeyError:
-        return []
-
+def _annual_value_records(fact):
+    """Convert one SEC Company Facts concept into annual observations."""
     results = []
+    yearly_values = {}
 
-    for unit, values in fact["units"].items():
-        yearly_values = {}
-
+    for values in fact.get("units", {}).values():
         for value in values:
-            if value.get("form") != "10-K":
+            if value.get("form") not in ANNUAL_FORMS:
                 continue
 
             end = value.get("end")
             filed = value.get("filed")
-
             if not end or not filed:
                 continue
 
             start = value.get("start")
-
-            # Flow statement values must cover approximately one full year.
             if start:
-                start_date = date.fromisoformat(start)
-                end_date = date.fromisoformat(end)
+                try:
+                    start_date = date.fromisoformat(start)
+                    end_date = date.fromisoformat(end)
+                except ValueError:
+                    continue
                 days = (end_date - start_date).days
-
                 if not 350 <= days <= 380:
                     continue
 
@@ -52,168 +50,202 @@ def get_fact(company_facts, fact_name):
                 **_fact_metadata(value),
             }
 
-            if year not in yearly_values:
-                yearly_values[year] = record
-            elif filed > yearly_values[year]["filed"]:
+            if year not in yearly_values or filed > yearly_values[year]["filed"]:
                 yearly_values[year] = record
 
-        results.extend(yearly_values.values())
-
-    return sorted(
-        results,
-        key=lambda x: x["year"]
-    )
+    results.extend(yearly_values.values())
+    return sorted(results, key=lambda x: x["year"])
 
 
-def get_net_income(company_facts):
-    tags = [
-        "ProfitLoss",
-        "NetIncomeLoss"
-    ]
+def _get_fact_from_namespaces(company_facts, candidates):
+    """Try SEC concepts across US-GAAP and IFRS namespaces.
 
-    for tag in tags:
-        if tag in company_facts["facts"]["us-gaap"]:
-            result = get_fact(company_facts, tag)
+    SEC Company Facts commonly exposes U.S. issuers under us-gaap and many
+    foreign private issuers under ifrs-full. Candidate order lets us prefer
+    the most specific concept while still supporting common IFRS terminology.
+    """
+    facts = company_facts.get("facts", {})
+    namespaces = ["us-gaap", "ifrs-full"]
 
-            if result:
-                return result
+    for namespace in namespaces:
+        namespace_facts = facts.get(namespace, {})
+        for tag in candidates:
+            fact = namespace_facts.get(tag)
+            if fact:
+                result = _annual_value_records(fact)
+                if result:
+                    return result
 
     return []
 
 
+def get_fact(company_facts, fact_name):
+    """Get an annual fact by exact tag, preserving SEC provenance."""
+    return _get_fact_from_namespaces(company_facts, [fact_name])
+
+
+def get_net_income(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        ["ProfitLoss", "NetIncomeLoss", "ProfitLossAttributableToOwnersOfParent"],
+    )
+
+
+def get_revenue(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        [
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "Revenue",
+            "SalesRevenueNet",
+            "Revenues",
+        ],
+    )
+
+
+def get_cash(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        [
+            "CashAndCashEquivalentsAtCarryingValue",
+            "CashAndCashEquivalents",
+            "CashCashEquivalentsAndShortTermInvestments",
+        ],
+    )
+
+
+def get_receivables(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        [
+            "AccountsReceivableNetCurrent",
+            "TradeAndOtherCurrentReceivables",
+            "TradeAndOtherReceivables",
+            "AccountsReceivableCurrent",
+        ],
+    )
+
+
+def get_inventory(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        [
+            "InventoryNet",
+            "Inventories",
+            "InventoryFinishedGoods",
+        ],
+    )
+
+
+def get_operating_cash_flow(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        [
+            "NetCashProvidedByUsedInOperatingActivities",
+            "CashFlowsFromUsedInOperatingActivities",
+            "CashGeneratedFromUsedInOperations",
+        ],
+    )
+
+
 def get_capex(company_facts):
-    try:
-        fact = company_facts["facts"]["us-gaap"][
-            "PaymentsToAcquirePropertyPlantAndEquipment"
-        ]
-    except KeyError:
-        return []
-
-    yearly_results = {}
-
-    for unit, values in fact["units"].items():
-        for value in values:
-            if value.get("form") != "10-K":
-                continue
-
-            start = value.get("start")
-            end = value.get("end")
-            filed = value.get("filed")
-
-            if not start or not end or not filed:
-                continue
-
-            start_date = date.fromisoformat(start)
-            end_date = date.fromisoformat(end)
-
-            days = (end_date - start_date).days
-
-            if not 350 <= days <= 380:
-                continue
-
-            year = end_date.year
-            record = {
-                "year": year,
-                "value": value.get("val"),
-                "filed": filed,
-                "start": start,
-                "end": end,
-                **_fact_metadata(value),
-            }
-
-            if year not in yearly_results:
-                yearly_results[year] = record
-            elif filed > yearly_results[year]["filed"]:
-                yearly_results[year] = record
-
-    return sorted(
-        yearly_results.values(),
-        key=lambda x: x["year"]
+    return _get_fact_from_namespaces(
+        company_facts,
+        [
+            "PaymentsToAcquirePropertyPlantAndEquipment",
+            "PurchaseOfPropertyPlantAndEquipment",
+            "PaymentsToAcquirePropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        ],
     )
 
 
 def get_debt(company_facts):
-    us_gaap = company_facts["facts"]["us-gaap"]
-
-    current_tag = "LongTermDebtCurrent"
-    noncurrent_tag = "LongTermDebtNoncurrent"
+    current = _get_fact_from_namespaces(
+        company_facts,
+        ["LongTermDebtCurrent", "BorrowingsCurrent", "CurrentBorrowings"],
+    )
+    noncurrent = _get_fact_from_namespaces(
+        company_facts,
+        ["LongTermDebtNoncurrent", "BorrowingsNoncurrent", "NoncurrentBorrowings"],
+    )
 
     yearly_results = {}
+    for records, field in [(current, "current"), (noncurrent, "noncurrent")]:
+        for value in records:
+            year = value["year"]
+            item = yearly_results.setdefault(
+                year,
+                {
+                    "year": year,
+                    "current": 0,
+                    "noncurrent": 0,
+                    "filed": value["filed"],
+                    "end": value["end"],
+                    "accn": value.get("accn"),
+                    "form": value.get("form"),
+                },
+            )
+            item[field] = value.get("value", 0) or 0
+            if value["filed"] > item["filed"]:
+                item.update(
+                    filed=value["filed"],
+                    end=value["end"],
+                    accn=value.get("accn"),
+                    form=value.get("form"),
+                )
 
-    for tag in [current_tag, noncurrent_tag]:
-        if tag not in us_gaap:
-            continue
-
-        fact = us_gaap[tag]
-
-        for unit, values in fact["units"].items():
-            for value in values:
-                if value.get("form") != "10-K":
-                    continue
-
-                end = value.get("end")
-                filed = value.get("filed")
-
-                if not end or not filed:
-                    continue
-
-                year = int(end[:4])
-
-                if year not in yearly_results:
-                    yearly_results[year] = {
-                        "year": year,
-                        "current": 0,
-                        "noncurrent": 0,
-                        "filed": filed,
-                        "end": end,
-                        "accn": value.get("accn"),
-                        "form": value.get("form"),
-                    }
-
-                if tag == current_tag:
-                    yearly_results[year]["current"] = value.get("val", 0)
-
-                elif tag == noncurrent_tag:
-                    yearly_results[year]["noncurrent"] = value.get("val", 0)
-
-                if filed > yearly_results[year]["filed"]:
-                    yearly_results[year]["filed"] = filed
-                    yearly_results[year]["accn"] = value.get("accn")
-                    yearly_results[year]["form"] = value.get("form")
-
-    for year, item in yearly_results.items():
+    for item in yearly_results.values():
         item["value"] = item["current"] + item["noncurrent"]
 
-    return sorted(
-        yearly_results.values(),
-        key=lambda x: x["year"]
-    )
+    return sorted(yearly_results.values(), key=lambda x: x["year"])
 
 
 def get_goodwill(company_facts):
     """Extract only recent annual goodwill balances aligned with current assets."""
-    goodwill = get_fact(company_facts, "Goodwill")
-    assets = get_fact(company_facts, "Assets")
+    goodwill = _get_fact_from_namespaces(company_facts, ["Goodwill"])
+    assets = get_assets(company_facts)
     if not goodwill or not assets:
         return []
 
     latest_asset_year = assets[-1]["year"]
-    return [item for item in goodwill if item["year"] in {latest_asset_year, latest_asset_year - 1}]
+    return [
+        item for item in goodwill
+        if item["year"] in {latest_asset_year, latest_asset_year - 1}
+    ]
+
+
+def get_assets(company_facts):
+    return _get_fact_from_namespaces(company_facts, ["Assets"])
+
+
+def get_liabilities(company_facts):
+    return _get_fact_from_namespaces(company_facts, ["Liabilities"])
+
+
+def get_current_assets(company_facts):
+    return _get_fact_from_namespaces(company_facts, ["AssetsCurrent", "CurrentAssets"])
+
+
+def get_current_liabilities(company_facts):
+    return _get_fact_from_namespaces(
+        company_facts,
+        ["LiabilitiesCurrent", "CurrentLiabilities"],
+    )
 
 
 def get_financial_data(company_facts):
     return {
-        "revenue": get_fact(company_facts, "RevenueFromContractWithCustomerExcludingAssessedTax"),
+        "revenue": get_revenue(company_facts),
         "net_income": get_net_income(company_facts),
-        "assets": get_fact(company_facts, "Assets"),
-        "cash": get_fact(company_facts, "CashAndCashEquivalentsAtCarryingValue"),
-        "liabilities": get_fact(company_facts, "Liabilities"),
+        "assets": get_assets(company_facts),
+        "cash": get_cash(company_facts),
+        "liabilities": get_liabilities(company_facts),
         "debt": get_debt(company_facts),
-        "receivables": get_fact(company_facts, "AccountsReceivableNetCurrent"),
-        "inventory": get_fact(company_facts, "InventoryNet"),
+        "receivables": get_receivables(company_facts),
+        "inventory": get_inventory(company_facts),
         "goodwill": get_goodwill(company_facts),
-        "operating_cash_flow": get_fact(company_facts, "NetCashProvidedByUsedInOperatingActivities"),
+        "operating_cash_flow": get_operating_cash_flow(company_facts),
         "capital_expenditures": get_capex(company_facts),
-        "current_assets": get_fact(company_facts, "AssetsCurrent"),
-        "current_liabilities": get_fact(company_facts, "LiabilitiesCurrent")
+        "current_assets": get_current_assets(company_facts),
+        "current_liabilities": get_current_liabilities(company_facts),
     }
