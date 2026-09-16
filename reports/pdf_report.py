@@ -156,7 +156,7 @@ def build_pdf_report(result, company_name, ticker, cik):
         else:
             story.append(Paragraph("No configured policy keywords were matched.", body_style))
     else:
-        story.append(Paragraph("No latest 10-K policy section was available.", body_style))
+        story.append(Paragraph("No latest annual filing policy section was available.", body_style))
 
     goodwill = result.get("goodwill_analysis", {})
     story.append(Paragraph("Goodwill analysis", section_style))
@@ -178,7 +178,7 @@ def build_pdf_report(result, company_name, ticker, cik):
     story.append(Paragraph("Source filing", section_style))
     if filing:
         story.append(Paragraph(
-            f"Form 10-K · filed {filing.get('filing_date', 'N/A')} · report date {filing.get('report_date', 'N/A')} · primary document {filing.get('primary_document', 'N/A')}",
+            f"Form {filing.get('form', 'annual report')} · filed {filing.get('filing_date', 'N/A')} · report date {filing.get('report_date', 'N/A')} · primary document {filing.get('primary_document', 'N/A')}",
             body_style,
         ))
         sec_url = filing.get("sec_url")
@@ -209,6 +209,6 @@ def _table_style():
         ("FONTSIZE", (0, 0), (-1, -1), 7.5),
         ("LEADING", (0, 0), (-1, -1), 9),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ])
