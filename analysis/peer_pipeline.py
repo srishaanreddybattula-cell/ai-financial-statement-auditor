@@ -1,6 +1,7 @@
 from analysis.peer_comparison import calculate_peer_deviation
 from analysis.risk_score import calculate_risk_score, get_risk_category
 from data.peer_data import collect_peer_metrics
+from data.ticker_map import find_company
 
 
 def add_peer_analysis(result, ticker):
@@ -51,7 +52,9 @@ def add_peer_analysis(result, ticker):
         "ocf_conversion": cash_flow.get("cash_flow_conversion"),
     }
 
-    peer_metrics = collect_peer_metrics(ticker, target_year=comparison_year)
+    company = find_company(ticker)
+    normalized_ticker = company.get("ticker") if company else ticker.upper().strip()
+    peer_metrics = collect_peer_metrics(normalized_ticker, target_year=comparison_year)
     peer_comparison = calculate_peer_deviation(company_metrics, peer_metrics)
     peer_comparison["comparison_year"] = comparison_year
     peer_comparison["peers"] = [
