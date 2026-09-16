@@ -90,13 +90,30 @@ def _dedupe_companies(companies):
     return list(unique.values())
 
 
+def _is_corporate_name_match(query, title):
+    """Recognize a short company-name query such as 'Apple' -> 'Apple Inc.'."""
+    query_words = _normalize_query(query).split()
+    title_words = _normalize_query(title).split()
+    if not query_words or len(title_words) <= len(query_words):
+        return False
+    if title_words[:len(query_words)] != query_words:
+        return False
+
+    common_suffixes = {
+        "inc", "incorporated", "corp", "corporation", "co", "company",
+        "ltd", "limited", "plc", "holdings", "holding", "group",
+    }
+    return any(word in common_suffixes for word in title_words[len(query_words):])
+
+
 def find_company(query):
     """Find an SEC-reporting issuer by ticker or company name.
 
     Matching is case-insensitive and ignores punctuation/spacing differences.
     Exact ticker matches are preferred, followed by exact company-name matches,
-    then unique partial company-name matches. If the ticker dataset cannot
-    identify a name, SEC's broader CIK/name database is used as a fallback.
+    then clear corporate-name matches such as 'Apple' -> 'Apple Inc.'.
+    If the ticker dataset cannot identify a name, SEC's broader CIK/name
+    database is used as a fallback.
     """
     normalized_query = _normalize_query(query)
     if not normalized_query:
@@ -104,7 +121,7 @@ def find_company(query):
 
     companies = _dedupe_companies(get_sec_companies())
 
-    # Exact ticker always wins. This fixes inputs such as AAPL, aapl, or Aapl.
+    # Exact ticker always wins. This supports AAPL, aapl, or Aapl.
     ticker_matches = [
         company
         for company in companies
@@ -113,7 +130,7 @@ def find_company(query):
     if ticker_matches:
         return ticker_matches[0]
 
-    # Exact company name, case-insensitive. This supports Apple, APPLE, etc.
+    # Exact company name, case-insensitive. This supports 'Apple Inc.' in any case.
     name_matches = [
         company
         for company in companies
@@ -122,10 +139,18 @@ def find_company(query):
     if len(name_matches) == 1:
         return name_matches[0]
     if len(name_matches) > 1:
-        # Same issuer may have multiple security aliases. Collapse by CIK.
         unique = _dedupe_companies(name_matches)
         if len(unique) == 1:
             return unique[0]
+
+    # For short common names, prefer a clear legal-company-name match.
+    corporate_matches = _dedupe_companies([
+        company
+        for company in companies
+        if _is_corporate_name_match(normalized_query, company.get("title", ""))
+    ])
+    if len(corporate_matches) == 1:
+        return corporate_matches[0]
 
     # Unique partial name match from ticker/exchange associations.
     partial_matches = _dedupe_companies([
@@ -146,11 +171,19 @@ def find_company(query):
     if len(fallback_exact) == 1:
         return fallback_exact[0]
 
-    fallback_partial = [
+    fallback_corporate = _dedupe_companies([
+        company
+        for company in cik_companies
+        if _is_corporate_name_match(normalized_query, company.get("title", ""))
+    ])
+    if len(fallback_corporate) == 1:
+        return fallback_corporate[0]
+
+    fallback_partial = _dedupe_companies([
         company
         for company in cik_companies
         if normalized_query in _normalize_query(company.get("title"))
-    ]
+    ])
     if len(fallback_partial) == 1:
         return fallback_partial[0]
 
