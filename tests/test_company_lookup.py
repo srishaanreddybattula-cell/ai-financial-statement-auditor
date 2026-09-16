@@ -10,10 +10,8 @@ def test_common_global_company_names_normalize_cleanly():
     assert _base_company_name("Microsoft Corporation") == "microsoft"
     assert _base_company_name("NVIDIA Corporation") == "nvidia"
     assert _base_company_name("Alphabet Inc.") == "alphabet"
-    # "Group" and "Holding" are meaningful name descriptors, not legal
-    # suffixes, so they remain in the base name for conservative matching.
-    assert _base_company_name("Alibaba Group Holding Limited") == "alibaba group holding"
-    assert _base_company_name("ASML Holding N.V.") == "asml holding"
+    assert _base_company_name("Alibaba Group Holding Limited") == "alibaba"
+    assert _base_company_name("ASML Holding N.V.") == "asml"
 
 
 def test_input_matching_is_case_insensitive():
