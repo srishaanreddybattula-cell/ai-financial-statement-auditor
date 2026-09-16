@@ -4,71 +4,87 @@ POLICY_KEYWORDS = {
         "revenue is recognized",
         "performance obligations",
         "contract liabilities",
-        "deferred revenue"
+        "deferred revenue",
     ],
     "inventory": [
         "inventory",
         "inventories",
         "cost of sales",
         "lower of cost",
-        "net realizable value"
+        "net realizable value",
     ],
     "depreciation": [
         "depreciation",
         "property, plant and equipment",
-        "useful lives"
+        "useful lives",
     ],
     "amortization": [
         "amortization",
         "finite-lived intangible",
-        "useful life"
+        "useful life",
     ],
     "goodwill": [
         "goodwill",
         "goodwill impairment",
-        "reporting unit"
+        "reporting unit",
     ],
     "stock_based_compensation": [
         "stock-based compensation",
         "share-based compensation",
         "stock compensation",
-        "restricted stock units"
+        "restricted stock units",
     ],
     "leases": [
         "leases",
         "lease liabilities",
         "right-of-use assets",
         "operating leases",
-        "finance leases"
+        "finance leases",
     ],
     "income_taxes": [
         "income taxes",
         "deferred tax",
         "effective tax rate",
-        "uncertain tax positions"
+        "uncertain tax positions",
     ],
     "fair_value": [
         "fair value",
         "fair value measurements",
         "level 1",
         "level 2",
-        "level 3"
+        "level 3",
     ],
     "impairments": [
         "impairment",
         "impairment charges",
-        "recoverability"
+        "recoverability",
     ],
     "acquisitions": [
         "business combinations",
         "acquisition",
         "acquisitions",
-        "purchase price allocation"
+        "purchase price allocation",
     ],
     "related_parties": [
         "related parties",
-        "related party transactions"
-    ]
+        "related party transactions",
+    ],
+}
+
+
+RISK_WEIGHTS = {
+    "revenue_recognition": 25,
+    "inventory": 5,
+    "depreciation": 5,
+    "amortization": 5,
+    "goodwill": 10,
+    "stock_based_compensation": 10,
+    "leases": 5,
+    "income_taxes": 5,
+    "fair_value": 10,
+    "impairments": 10,
+    "acquisitions": 5,
+    "related_parties": 5,
 }
 
 
@@ -80,51 +96,30 @@ def find_policy_keywords(text):
     results = {}
 
     for policy, keywords in POLICY_KEYWORDS.items():
-        matches = []
-
-        for keyword in keywords:
-            if keyword in text_lower:
-                matches.append(keyword)
-
-        results[policy] = matches
+        results[policy] = [
+            keyword for keyword in keywords if keyword in text_lower
+        ]
 
     return results
 
 
 def get_policy_flags(text):
     matches = find_policy_keywords(text)
-
-    flags = {}
-
-    for policy, keywords in matches.items():
-        flags[policy] = len(keywords) > 0
-
-    return flags
+    return {
+        policy: bool(keywords)
+        for policy, keywords in matches.items()
+    }
 
 
 def calculate_policy_risk(policy_flags):
-    risk_score = 0
+    """Calculate a low-risk baseline from disclosure presence alone.
 
-    risk_weights = {
-        "revenue_recognition": 25,
-        "inventory": 5,
-        "depreciation": 5,
-        "amortization": 5,
-        "goodwill": 10,
-        "stock_based_compensation": 10,
-        "leases": 5,
-        "income_taxes": 5,
-        "fair_value": 10,
-        "impairments": 10,
-        "acquisitions": 5,
-        "related_parties": 5
-    }
-
-    for policy, flagged in policy_flags.items():
-        if flagged:
-            risk_score += risk_weights.get(policy, 0)
-
-    return min(risk_score, 100)
+    The presence of an ordinary accounting-policy disclosure is not treated as
+    evidence of an accounting problem. Higher-level risk is assessed separately
+    from topic analysis, where judgment, uncertainty, and potential material
+    impact can coincide.
+    """
+    return 0
 
 
 def analyze_accounting_policies(text):
@@ -135,5 +130,5 @@ def analyze_accounting_policies(text):
     return {
         "policy_matches": policy_matches,
         "policy_flags": policy_flags,
-        "risk_score": risk_score
+        "risk_score": risk_score,
     }
