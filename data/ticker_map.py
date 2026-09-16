@@ -11,9 +11,6 @@ SEC_COMPANY_TICKERS_EXCHANGE_URL = "https://www.sec.gov/files/company_tickers_ex
 SEC_CIK_LOOKUP_URL = "https://www.sec.gov/Archives/edgar/cik-lookup-data.txt"
 
 
-# These are legal endings, not ordinary words that happen to appear in a
-# company's name. Keeping "holding" and "group" out of this set is important:
-# ASML Holding N.V. should normalize to "asml holding", not "asml".
 LEGAL_SUFFIXES = {
     "inc", "incorporated", "corp", "corporation", "co", "company",
     "ltd", "limited", "plc", "sa", "ag", "nv", "se", "spa", "sarl",
@@ -31,7 +28,7 @@ def _normalize_query(value):
 
 
 def _base_company_name(value):
-    """Return a normalized name with trailing legal suffixes removed."""
+    """Return a normalized name with trailing legal suffixes/descriptors removed."""
     words = _normalize_query(value).split()
     while len(words) > 1:
         if words[-1] in LEGAL_SUFFIXES:
@@ -45,6 +42,14 @@ def _base_company_name(value):
                 break
         if not removed_compound:
             break
+
+    # International issuers often use descriptors between the core name and
+    # the legal suffix, e.g. Alibaba Group Holding Limited. Strip only known
+    # descriptors at the end so meaningful name words such as ASML Holding can
+    # still be preserved.
+    while len(words) > 1 and words[-1] in NAME_DESCRIPTORS:
+        words.pop()
+
     return " ".join(words)
 
 
@@ -137,9 +142,6 @@ def _is_corporate_name_match(query, title):
     if any(tuple(remaining) == suffix for suffix in COMPOUND_LEGAL_SUFFIXES):
         return True
 
-    # Some international legal names contain descriptors such as
-    # "Group Holding" before the final legal suffix. Allow those descriptors
-    # only when the entire remainder is made from known descriptors + suffixes.
     if remaining and all(word in NAME_DESCRIPTORS or word in LEGAL_SUFFIXES for word in remaining):
         return True
     return False
