@@ -31,21 +31,24 @@ def build_excel_report(result, company_name, ticker, cik):
         summary.cell(row=row_number, column=1, value=label).font = header_font
         summary.cell(row=row_number, column=2, value=value)
 
-    source = result.get("source_filing") or {}
+    # The analysis pipeline stores the selected 10-K under "filing".
+    # Keep the Excel report aligned with that canonical result structure.
+    filing = result.get("filing") or {}
     summary["A10"] = "Source filing"
     summary["A10"].font = header_font
     source_rows = [
-        ("Form", source.get("form", "N/A")),
-        ("Filed", source.get("filed", "N/A")),
-        ("Report date", source.get("report_date", "N/A")),
-        ("Primary document", source.get("primary_document", "N/A")),
-        ("SEC source filing", source.get("url", "N/A")),
+        ("Form", "10-K" if filing else "N/A"),
+        ("Filed", filing.get("filing_date", "N/A")),
+        ("Report date", filing.get("report_date", "N/A")),
+        ("Primary document", filing.get("primary_document", "N/A")),
+        ("SEC accession number", filing.get("accession_number", "N/A")),
+        ("SEC source filing", filing.get("sec_url", "N/A")),
     ]
     for row_number, (label, value) in enumerate(source_rows, start=11):
         summary.cell(row=row_number, column=1, value=label).font = header_font
         cell = summary.cell(row=row_number, column=2, value=value)
-        if label == "SEC source filing" and source.get("url"):
-            cell.hyperlink = source["url"]
+        if label == "SEC source filing" and filing.get("sec_url"):
+            cell.hyperlink = filing["sec_url"]
             cell.style = "Hyperlink"
 
     summary["A18"] = "Interpretation"
