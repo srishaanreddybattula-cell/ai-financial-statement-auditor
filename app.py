@@ -61,6 +61,14 @@ if submitted:
         "The score is a prototype screening model. A flagged indicator means the financial data or disclosures deserve further review; it does not establish an accounting error, fraud, or material misstatement."
     )
 
+    st.subheader("Risk score overview")
+    score = max(0.0, min(100.0, float(result["risk_score"])))
+    st.progress(score / 100)
+    st.caption(
+        f"Current screening score: **{score:.2f}/100** · "
+        f"Prototype category: **{result['risk_category']}**"
+    )
+
     findings = generate_findings(result)
 
     st.header("Key findings")
