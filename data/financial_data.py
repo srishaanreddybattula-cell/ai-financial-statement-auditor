@@ -58,25 +58,30 @@ def _annual_value_records(fact):
 
 
 def _get_fact_from_namespaces(company_facts, candidates):
-    """Try SEC concepts across US-GAAP and IFRS namespaces.
+    """Choose the best annual SEC concept across US-GAAP and IFRS.
 
-    SEC Company Facts commonly exposes U.S. issuers under us-gaap and many
-    foreign private issuers under ifrs-full. Candidate order lets us prefer
-    the most specific concept while still supporting common IFRS terminology.
+    SEC Company Facts can expose more than one valid concept for the same
+    metric. Some concepts may have only a small number of annual observations,
+    while another equivalent concept has a longer history. Prefer the concept
+    with the most usable annual observations, using candidate order as the
+    tie-breaker. This is especially important for foreign private issuers using
+    IFRS concepts in 20-F or 40-F filings.
     """
     facts = company_facts.get("facts", {})
     namespaces = ["us-gaap", "ifrs-full"]
+    best_result = []
 
     for namespace in namespaces:
         namespace_facts = facts.get(namespace, {})
         for tag in candidates:
             fact = namespace_facts.get(tag)
-            if fact:
-                result = _annual_value_records(fact)
-                if result:
-                    return result
+            if not fact:
+                continue
+            result = _annual_value_records(fact)
+            if len(result) > len(best_result):
+                best_result = result
 
-    return []
+    return best_result
 
 
 def get_fact(company_facts, fact_name):
