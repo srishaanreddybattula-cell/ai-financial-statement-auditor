@@ -240,12 +240,19 @@ if submitted:
             "current_ratio": "Current Ratio",
             "ocf_conversion": "OCF Conversion",
         }
+        risk_direction_labels = {
+            "higher": "Higher is riskier",
+            "lower": "Lower is riskier",
+        }
         for metric, values in peer_comparison.get("metrics", {}).items():
             peer_rows.append(
                 {
                     "Metric": metric_labels.get(metric, metric),
                     "Company": values["company_value"],
                     "Peer median": values["peer_median"],
+                    "Risk direction": risk_direction_labels.get(
+                        values.get("risk_direction"), "Not specified"
+                    ),
                     "Robust z-score": values["z_score"],
                     "Metric risk level": values["risk_level"],
                 }
