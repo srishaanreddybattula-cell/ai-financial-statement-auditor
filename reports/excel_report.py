@@ -43,6 +43,7 @@ def build_excel_report(result, company_name, ticker, cik):
     _add_risk_dimensions_sheet(workbook, result)
     _add_findings_sheet(workbook, result)
     _add_financial_data_sheet(workbook, result)
+    _add_goodwill_sheet(workbook, result)
     _add_peer_sheet(workbook, result)
     _add_policies_sheet(workbook, result)
 
@@ -123,6 +124,7 @@ def _add_financial_data_sheet(workbook, result):
         ("Capital expenditures", financial_data.get("capital_expenditures", [])),
         ("Current assets", financial_data.get("current_assets", [])),
         ("Current liabilities", financial_data.get("current_liabilities", [])),
+        ("Goodwill", financial_data.get("goodwill", [])),
     ]
 
     sheet.append(["Metric", "Year", "Value", "Filed", "Period start", "Period end"])
@@ -137,6 +139,25 @@ def _add_financial_data_sheet(workbook, result):
                 item.get("start"),
                 item.get("end"),
             ])
+
+
+def _add_goodwill_sheet(workbook, result):
+    sheet = workbook.create_sheet("Goodwill Analysis")
+    sheet.append(["Metric", "Value"])
+    _style_header(sheet)
+
+    goodwill = result.get("goodwill_analysis", {})
+    if goodwill.get("goodwill_to_assets") is None:
+        sheet.append(["Status", goodwill.get("message", "Not enough data to analyze goodwill.")])
+        return
+
+    sheet.append(["Goodwill / total assets", goodwill.get("goodwill_to_assets")])
+    sheet.append(["Year-over-year goodwill change", goodwill.get("goodwill_change")])
+    sheet.append([
+        "Screening status",
+        "Review suggested" if goodwill.get("flag") else "No threshold triggered",
+    ])
+    sheet.append(["Explanation", goodwill.get("message", "")])
 
 
 def _add_peer_sheet(workbook, result):
