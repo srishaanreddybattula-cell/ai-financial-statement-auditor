@@ -3,8 +3,9 @@ from analysis.anomaly_detection import (
     detect_historical_growth_anomalies,
 )
 from analysis.findings import generate_findings
+from analysis.pipeline import find_latest_annual_filing
 from analysis.risk_score import calculate_risk_score, get_risk_category
-from data.financial_data import get_fact, get_goodwill
+from data.financial_data import get_fact, get_financial_data, get_goodwill
 from data.normalizer import normalize_annual_data
 
 
@@ -187,3 +188,78 @@ def test_goodwill_ignores_stale_facts():
         }
     }
     assert get_goodwill(company_facts) == []
+
+
+def test_ifrs_financial_facts_are_supported():
+    company_facts = {
+        "facts": {
+            "ifrs-full": {
+                "Revenue": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": 200,
+                                "form": "20-F",
+                                "filed": "2026-03-01",
+                                "accn": "foreign-2026",
+                                "start": "2025-01-01",
+                                "end": "2025-12-31",
+                            },
+                            {
+                                "val": 180,
+                                "form": "20-F",
+                                "filed": "2025-03-01",
+                                "accn": "foreign-2025",
+                                "start": "2024-01-01",
+                                "end": "2024-12-31",
+                            },
+                        ]
+                    }
+                },
+                "ProfitLoss": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": 40,
+                                "form": "20-F",
+                                "filed": "2026-03-01",
+                                "accn": "foreign-2026",
+                                "start": "2025-01-01",
+                                "end": "2025-12-31",
+                            },
+                            {
+                                "val": 35,
+                                "form": "20-F",
+                                "filed": "2025-03-01",
+                                "accn": "foreign-2025",
+                                "start": "2024-01-01",
+                                "end": "2024-12-31",
+                            },
+                        ]
+                    }
+                },
+            }
+        }
+    }
+    result = get_financial_data(company_facts)
+    assert result["revenue"][-1]["value"] == 200
+    assert result["revenue"][-1]["form"] == "20-F"
+    assert result["net_income"][-1]["value"] == 40
+
+
+def test_latest_annual_filing_supports_foreign_forms():
+    submissions = {
+        "filings": {
+            "recent": {
+                "form": ["6-K", "20-F", "8-K"],
+                "accessionNumber": ["a", "0000123456-26-000001", "b"],
+                "primaryDocument": ["x.htm", "annual.htm", "y.htm"],
+                "filingDate": ["2026-01-01", "2026-02-01", "2026-03-01"],
+                "reportDate": ["2025-12-01", "2025-12-31", "2026-03-01"],
+            }
+        }
+    }
+    filing = find_latest_annual_filing(submissions, 123456)
+    assert filing["form"] == "20-F"
+    assert filing["accession_number"] == "0000123456-26-000001"
+    assert filing["sec_url"].endswith("/000012345626000001/annual.htm")
