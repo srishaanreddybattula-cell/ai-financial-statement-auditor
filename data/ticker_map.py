@@ -11,17 +11,18 @@ SEC_COMPANY_TICKERS_EXCHANGE_URL = "https://www.sec.gov/files/company_tickers_ex
 SEC_CIK_LOOKUP_URL = "https://www.sec.gov/Archives/edgar/cik-lookup-data.txt"
 
 
-# Legal suffixes are removed only when they appear at the END of a company name.
-# This lets "Apple" resolve to "Apple Inc." without treating every company whose
-# name merely contains the word "Apple" as a match.
+# These are legal endings, not ordinary words that happen to appear in a
+# company's name. Keeping "holding" and "group" out of this set is important:
+# ASML Holding N.V. should normalize to "asml holding", not "asml".
 LEGAL_SUFFIXES = {
     "inc", "incorporated", "corp", "corporation", "co", "company",
-    "ltd", "limited", "plc", "holdings", "holding", "group", "sa",
-    "ag", "nv", "se", "spa", "sarl", "pte", "llc", "lp", "llp",
+    "ltd", "limited", "plc", "sa", "ag", "nv", "se", "spa", "sarl",
+    "pte", "llc", "lp", "llp",
 }
 COMPOUND_LEGAL_SUFFIXES = {
     ("n", "v"), ("p", "l", "c"), ("s", "a"), ("a", "g"),
 }
+NAME_DESCRIPTORS = {"group", "holding", "holdings"}
 
 
 def _normalize_query(value):
@@ -122,17 +123,26 @@ def _dedupe_companies(companies):
 
 
 def _is_corporate_name_match(query, title):
-    """Recognize a short company-name query such as 'Apple' -> 'Apple Inc.'."""
+    """Recognize a short name such as 'Apple' -> 'Apple Inc.'."""
     query_words = _normalize_query(query).split()
     title_words = _normalize_query(title).split()
     if not query_words or len(title_words) <= len(query_words):
         return False
     if title_words[:len(query_words)] != query_words:
         return False
+
     remaining = title_words[len(query_words):]
     if all(word in LEGAL_SUFFIXES for word in remaining):
         return True
-    return any(tuple(remaining) == suffix for suffix in COMPOUND_LEGAL_SUFFIXES)
+    if any(tuple(remaining) == suffix for suffix in COMPOUND_LEGAL_SUFFIXES):
+        return True
+
+    # Some international legal names contain descriptors such as
+    # "Group Holding" before the final legal suffix. Allow those descriptors
+    # only when the entire remainder is made from known descriptors + suffixes.
+    if remaining and all(word in NAME_DESCRIPTORS or word in LEGAL_SUFFIXES for word in remaining):
+        return True
+    return False
 
 
 def find_company(query):
@@ -149,19 +159,15 @@ def find_company(query):
 
     companies = _dedupe_companies(get_sec_companies())
 
-    # 1. Exact ticker always wins. Supports AAPL, aapl, or Aapl.
     ticker_matches = [
-        company
-        for company in companies
+        company for company in companies
         if _normalize_query(company.get("ticker")) == normalized_query
     ]
     if ticker_matches:
         return ticker_matches[0]
 
-    # 2. Exact legal company name.
     name_matches = [
-        company
-        for company in companies
+        company for company in companies
         if _normalize_query(company.get("title")) == normalized_query
     ]
     if len(name_matches) == 1:
@@ -171,66 +177,52 @@ def find_company(query):
         if len(unique) == 1:
             return unique[0]
 
-    # 3. Exact base company name. Examples: Apple -> Apple Inc.;
-    # Microsoft -> Microsoft Corporation. This is intentionally stricter
-    # than substring matching so "Apple" does not collide with Apple-related issuers.
     base_matches = _dedupe_companies([
-        company
-        for company in companies
+        company for company in companies
         if _base_company_name(company.get("title")) == normalized_query
     ])
     if len(base_matches) == 1:
         return base_matches[0]
 
-    # 4. Prefix + legal suffix only. This catches simple company-name inputs
-    # while avoiding broad substring ambiguity.
     corporate_matches = _dedupe_companies([
-        company
-        for company in companies
+        company for company in companies
         if _is_corporate_name_match(normalized_query, company.get("title", ""))
     ])
     if len(corporate_matches) == 1:
         return corporate_matches[0]
 
-    # 5. Unique partial name match from ticker/exchange associations.
     partial_matches = _dedupe_companies([
-        company
-        for company in companies
+        company for company in companies
         if normalized_query in _normalize_query(company.get("title"))
     ])
     if len(partial_matches) == 1:
         return partial_matches[0]
 
-    # 6. Broader SEC CIK/name fallback for filers without a ticker/exchange entry.
     cik_companies = _dedupe_companies(get_sec_cik_names())
 
     fallback_exact = [
-        company
-        for company in cik_companies
+        company for company in cik_companies
         if _normalize_query(company.get("title")) == normalized_query
     ]
     if len(fallback_exact) == 1:
         return fallback_exact[0]
 
     fallback_base = _dedupe_companies([
-        company
-        for company in cik_companies
+        company for company in cik_companies
         if _base_company_name(company.get("title")) == normalized_query
     ])
     if len(fallback_base) == 1:
         return fallback_base[0]
 
     fallback_corporate = _dedupe_companies([
-        company
-        for company in cik_companies
+        company for company in cik_companies
         if _is_corporate_name_match(normalized_query, company.get("title", ""))
     ])
     if len(fallback_corporate) == 1:
         return fallback_corporate[0]
 
     fallback_partial = _dedupe_companies([
-        company
-        for company in cik_companies
+        company for company in cik_companies
         if normalized_query in _normalize_query(company.get("title"))
     ])
     if len(fallback_partial) == 1:
