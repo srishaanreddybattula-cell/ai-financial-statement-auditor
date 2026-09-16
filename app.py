@@ -8,6 +8,7 @@ from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
 from data.xbrl import get_company_facts
 from data.normalizer import normalize_annual_data
+from reports.excel_report import build_excel_report
 from reports.pdf_report import build_pdf_report
 
 
@@ -311,13 +312,25 @@ if submitted:
         st.write(f"Primary document: `{filing['primary_document']}`")
 
     st.header("Download report")
-    pdf_bytes = build_pdf_report(result, company_name, ticker, cik)
-    st.download_button(
-        "Download PDF report",
-        data=pdf_bytes,
-        file_name=f"{ticker}_financial_reporting_risk_report.pdf",
-        mime="application/pdf",
-    )
+    report_col1, report_col2 = st.columns(2)
+
+    with report_col1:
+        pdf_bytes = build_pdf_report(result, company_name, ticker, cik)
+        st.download_button(
+            "Download PDF report",
+            data=pdf_bytes,
+            file_name=f"{ticker}_financial_reporting_risk_report.pdf",
+            mime="application/pdf",
+        )
+
+    with report_col2:
+        excel_bytes = build_excel_report(result, company_name, ticker, cik)
+        st.download_button(
+            "Download Excel report",
+            data=excel_bytes,
+            file_name=f"{ticker}_financial_reporting_risk_report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 st.divider()
 st.caption("Prototype for financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
