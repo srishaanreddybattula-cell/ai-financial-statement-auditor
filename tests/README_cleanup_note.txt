@@ -1,0 +1,1 @@
+Temporary note: keep the established foreign filing regression in tests/test_annual_forms.py; duplicate scratch tests should be removed before final release.
