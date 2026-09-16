@@ -14,11 +14,7 @@ def _normalize_query(value):
 
 
 def get_sec_companies():
-    """Return SEC-reporting issuers from SEC's ticker/CIK datasets.
-
-    The exchange dataset includes many foreign issuers and ADRs in addition to
-    U.S. companies. The regular ticker dataset is retained as a fallback.
-    """
+    """Return SEC-reporting issuers from SEC's ticker/CIK datasets."""
     response = requests.get(
         SEC_COMPANY_TICKERS_EXCHANGE_URL,
         headers=SEC_HEADERS,
@@ -53,11 +49,11 @@ def get_sec_companies():
 
 
 def find_company(query):
-    """Find an SEC-reporting issuer by ticker or company name.
+    """Find an SEC issuer by ticker or company name.
 
-    Matching is case-insensitive and ignores punctuation, spacing differences,
-    and common formatting differences. This supports inputs such as Apple,
-    APPLE, apple, and AAPL.
+    Matching is case-insensitive and ignores punctuation/spacing differences.
+    Exact ticker matches always win, so inputs such as AAPL, aapl, Apple, and
+    APPLE can resolve to Apple's SEC issuer when present in the SEC dataset.
     """
     normalized_query = _normalize_query(query)
     if not normalized_query:
@@ -65,24 +61,37 @@ def find_company(query):
 
     companies = list(get_sec_companies())
 
-    # Prefer an exact ticker match, regardless of capitalization.
-    for company in companies:
-        if _normalize_query(company.get("ticker")) == normalized_query:
-            return company
+    # 1. Exact ticker match. This is intentionally checked before company names.
+    ticker_matches = [
+        company
+        for company in companies
+        if _normalize_query(company.get("ticker")) == normalized_query
+    ]
+    if ticker_matches:
+        # Prefer an exchange-listed security with a valid CIK.
+        ticker_matches = [c for c in ticker_matches if c.get("cik_str")]
+        if ticker_matches:
+            return ticker_matches[0]
 
-    # Then prefer an exact company-name match.
-    for company in companies:
-        if _normalize_query(company.get("title")) == normalized_query:
-            return company
+    # 2. Exact company-name match.
+    name_matches = [
+        company
+        for company in companies
+        if _normalize_query(company.get("title")) == normalized_query
+    ]
+    if len(name_matches) == 1:
+        return name_matches[0]
 
-    # Finally allow a company-name search. Only return an unambiguous match.
+    # 3. Unique company-name containment match.
     matches = [
         company
         for company in companies
         if normalized_query in _normalize_query(company.get("title"))
     ]
+    if len(matches) == 1:
+        return matches[0]
 
-    return matches[0] if len(matches) == 1 else None
+    return None
 
 
 def get_cik_from_ticker(ticker):
