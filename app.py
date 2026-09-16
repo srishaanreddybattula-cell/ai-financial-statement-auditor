@@ -4,7 +4,7 @@ from pathlib import Path
 from analysis.findings import generate_findings
 from analysis.pipeline import analyze_company
 from analysis.peer_pipeline import add_peer_analysis
-from analysis.risk_score import calculate_score_breakdown
+from analysis.risk_score import calculate_score_breakdown, calculate_score_coverage
 from analysis.data_quality import assess_data_quality
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_company_from_query
@@ -16,10 +16,8 @@ from reports.pdf_report import build_pdf_report
 
 st.set_page_config(page_title="Aurevia | Financial Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 
-# Load the custom dark dashboard theme from the repository.
 st.markdown(f"<style>{Path('theme.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
-# Branded sidebar
 with st.sidebar:
     st.markdown("<div class='brand'><span class='brand-mark'>◈</span><span>Aurevia</span></div>", unsafe_allow_html=True)
     st.caption("Financial intelligence, grounded in SEC data")
@@ -77,7 +75,10 @@ if submitted:
     st.subheader("Risk score overview")
     score = max(0.0, min(100.0, float(result["risk_score"])))
     st.progress(score / 100)
-    st.caption(f"Current screening score: **{score:.2f}/100** · Prototype category: **{result['risk_category']}**")
+    score_coverage = calculate_score_coverage(result["risk_dimensions"])
+    st.caption(f"Current screening score: **{score:.2f}/100** · Prototype category: **{result['risk_category']}** · Risk model coverage: **{score_coverage:.0f}%**")
+    if score_coverage < 100:
+        st.warning("Some risk dimensions do not have enough underlying data. They are excluded from the score rather than being treated as zero risk.")
 
     findings = generate_findings(result)
     result["findings"] = findings
@@ -105,15 +106,28 @@ if submitted:
         st.warning("Missing core metrics: " + ", ".join(data_quality["missing"]))
     else:
         st.success("All core metrics required by the screening model are available.")
+    if data_quality.get("insufficient_history"):
+        st.warning("Limited annual history for: " + ", ".join(data_quality["insufficient_history"]))
     st.caption("Coverage measures whether the core annual financial metrics needed by the screening model are available. It does not measure the accuracy or completeness of the underlying SEC filing.")
 
     st.header("Key financial signals")
+    debt_data = normalize_annual_data(result.get("financial_data", {}).get("debt", []))
+    liabilities_data = normalize_annual_data(result.get("financial_data", {}).get("liabilities", []))
+    latest_debt = debt_data[-1]["value"] if debt_data else None
+    latest_assets = normalize_annual_data(result.get("financial_data", {}).get("assets", []))
+    latest_assets_value = latest_assets[-1]["value"] if latest_assets else None
+    latest_liabilities = liabilities_data[-1]["value"] if liabilities_data else None
+    debt_to_assets = latest_debt / latest_assets_value if latest_debt is not None and latest_assets_value not in (None, 0) else None
+    liabilities_to_assets = latest_liabilities / latest_assets_value if latest_liabilities is not None and latest_assets_value not in (None, 0) else None
+
     metrics = [
         ("Revenue growth", result["revenue_growth"], "%"),
         ("Receivables growth", result["receivables_growth"], "%"),
         ("Inventory growth", result["inventory_growth"], "%"),
         ("DSO change", result["working_capital"]["dso_change"], "%"),
         ("Current ratio", result["working_capital"]["current_ratio"], ""),
+        ("Debt / assets", debt_to_assets, "ratio"),
+        ("Liabilities / assets", liabilities_to_assets, "ratio"),
         ("OCF conversion", result["cash_flow"]["cash_flow_conversion"], "%"),
         ("FCF conversion", result["cash_flow"]["fcf_conversion"], "%"),
         ("Accrual ratio", result["accruals"]["accrual_ratio"], ""),
@@ -124,6 +138,8 @@ if submitted:
             display = "N/A"
         elif suffix == "%":
             display = f"{value:.2f}%"
+        elif suffix == "ratio":
+            display = f"{value:.2%}"
         else:
             display = f"{value:.2f}"
         cols[index % 4].metric(label, display)
@@ -222,13 +238,23 @@ if submitted:
 
     st.header("Risk dimensions")
     risk_dimensions = result["risk_dimensions"]
-    risk_rows = [(name.replace("_", " ").title(), value) for name, value in risk_dimensions.items()]
+    risk_rows = [(name.replace("_", " ").title(), "N/A" if value is None else value) for name, value in risk_dimensions.items()]
     st.dataframe(risk_rows, column_config={"0": "Dimension", "1": "Risk level"}, hide_index=True, width="stretch")
     st.subheader("How the risk score is calculated")
-    st.caption("Each dimension is capped at 100, multiplied by its model weight, and added to produce the 0–100 screening score.")
-    breakdown_rows = [{"Dimension": item["dimension"].replace("_", " ").title(), "Risk level": item["risk_level"], "Weight": f"{item['weight']}%", "Score contribution": item["contribution"]} for item in result["score_breakdown"]]
+    st.caption("Each available dimension is capped at 100 and weighted using the model weights. When a dimension is unavailable, its weight is excluded from the denominator instead of being treated as zero risk.")
+    breakdown_rows = []
+    for item in result["score_breakdown"]:
+        breakdown_rows.append({
+            "Dimension": item["dimension"].replace("_", " ").title(),
+            "Risk level": item["risk_level"],
+            "Model weight": f"{item['weight']}%",
+            "Normalized weight": f"{item['normalized_weight']:.2f}%",
+            "Score contribution": item["contribution"],
+            "Data available": "Yes" if item["available"] else "No",
+        })
     st.dataframe(breakdown_rows, hide_index=True, width="stretch", column_config={"Risk level": st.column_config.NumberColumn(format="%.0f"), "Score contribution": st.column_config.NumberColumn(format="%.2f")})
-    st.metric("Total weighted score", f"{result['risk_score']:.2f}/100")
+    st.metric("Total screening score", f"{result['risk_score']:.2f}/100")
+    st.metric("Risk model coverage", f"{score_coverage:.0f}%")
 
     st.header("Peer comparison")
     peer_comparison = result.get("peer_comparison", {})
