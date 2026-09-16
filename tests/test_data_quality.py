@@ -7,6 +7,7 @@ def test_data_quality_requires_two_annual_periods_for_screening_readiness():
         "net_income": [{"year": 2024, "value": 10}, {"year": 2025, "value": 12}],
         "assets": [{"year": 2024, "value": 90}, {"year": 2025, "value": 100}],
         "liabilities": [{"year": 2024, "value": 40}, {"year": 2025, "value": 45}],
+        "debt": [{"year": 2024, "value": 20}, {"year": 2025, "value": 25}],
         "receivables": [{"year": 2024, "value": 8}, {"year": 2025, "value": 9}],
         "operating_cash_flow": [{"year": 2024, "value": 15}, {"year": 2025, "value": 16}],
         "current_assets": [{"year": 2024, "value": 30}, {"year": 2025, "value": 32}],
@@ -24,6 +25,7 @@ def test_data_quality_requires_two_annual_periods_for_screening_readiness():
 def test_data_quality_reports_missing_metrics():
     result = assess_data_quality({"revenue": [{"year": 2025, "value": 100}]})
 
-    assert result["coverage_percent"] == 12.5
+    assert result["coverage_percent"] == round(1 / 9 * 100, 2)
     assert "Net income" in result["missing"]
+    assert "Debt" in result["missing"]
     assert result["screening_ready"] is False
