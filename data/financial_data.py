@@ -61,11 +61,9 @@ def _get_fact_from_namespaces(company_facts, candidates):
     """Choose the best annual SEC concept across US-GAAP and IFRS.
 
     SEC Company Facts can expose more than one valid concept for the same
-    metric. Some concepts may have only a small number of annual observations,
-    while another equivalent concept has a longer history. Prefer the concept
-    with the most usable annual observations, using candidate order as the
-    tie-breaker. This is especially important for foreign private issuers using
-    IFRS concepts in 20-F or 40-F filings.
+    metric. Prefer the concept with the most usable annual observations, using
+    candidate order as the tie-breaker. This is important for foreign issuers
+    using IFRS concepts in 20-F or 40-F filings.
     """
     facts = company_facts.get("facts", {})
     namespaces = ["us-gaap", "ifrs-full"]
@@ -166,13 +164,25 @@ def get_capex(company_facts):
 
 
 def get_debt(company_facts):
+    """Extract annual current and non-current debt without double counting."""
     current = _get_fact_from_namespaces(
         company_facts,
-        ["LongTermDebtCurrent", "BorrowingsCurrent", "CurrentBorrowings"],
+        [
+            "LongTermDebtAndFinanceLeaseObligationsCurrent",
+            "LongTermDebtCurrent",
+            "BorrowingsCurrent",
+            "CurrentBorrowings",
+            "ShortTermBorrowings",
+        ],
     )
     noncurrent = _get_fact_from_namespaces(
         company_facts,
-        ["LongTermDebtNoncurrent", "BorrowingsNoncurrent", "NoncurrentBorrowings"],
+        [
+            "LongTermDebtAndFinanceLeaseObligationsNoncurrent",
+            "LongTermDebtNoncurrent",
+            "BorrowingsNoncurrent",
+            "NoncurrentBorrowings",
+        ],
     )
 
     yearly_results = {}
