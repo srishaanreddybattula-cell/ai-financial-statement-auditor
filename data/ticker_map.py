@@ -49,40 +49,84 @@ def _base_company_name(value):
     return " ".join(words)
 
 
-@lru_cache(maxsize=1)
-def get_sec_companies():
-    """Return SEC ticker/exchange associations, including foreign issuers."""
-    response = requests.get(
-        SEC_COMPANY_TICKERS_EXCHANGE_URL,
-        headers=SEC_HEADERS,
-        timeout=30,
-    )
-    response.raise_for_status()
-    payload = response.json()
-
-    fields = payload.get("fields", [])
-    companies = []
-    for row in payload.get("data", []):
-        record = dict(zip(fields, row))
-        companies.append(
+def _parse_company_tickers(payload):
+    """Convert either SEC ticker JSON shape into a common company-record list."""
+    if isinstance(payload, dict) and "data" in payload and "fields" in payload:
+        fields = payload.get("fields", [])
+        rows = payload.get("data", [])
+        return [
             {
                 "cik_str": record.get("cik"),
                 "ticker": record.get("ticker", ""),
                 "title": record.get("name", ""),
                 "exchange": record.get("exchange", ""),
             }
+            for row in rows
+            for record in [dict(zip(fields, row))]
+        ]
+
+    if isinstance(payload, dict):
+        return [
+            {
+                "cik_str": record.get("cik_str"),
+                "ticker": record.get("ticker", ""),
+                "title": record.get("title", ""),
+                "exchange": record.get("exchange", ""),
+            }
+            for record in payload.values()
+            if isinstance(record, dict)
+        ]
+
+    return []
+
+
+@lru_cache(maxsize=1)
+def get_sec_companies():
+    """Return SEC ticker/company associations, including foreign issuers.
+
+    Merge the SEC exchange-aware dataset with the broader ticker dataset instead
+    of treating the exchange-aware file as an all-or-nothing replacement. This
+    preserves exchange information where available while retaining issuers that
+    only appear in the broader SEC ticker/CIK mapping.
+    """
+    merged = {}
+
+    try:
+        response = requests.get(
+            SEC_COMPANY_TICKERS_EXCHANGE_URL,
+            headers=SEC_HEADERS,
+            timeout=30,
         )
+        response.raise_for_status()
+        for company in _parse_company_tickers(response.json()):
+            cik = str(company.get("cik_str", "")).zfill(10)
+            if cik.strip("0"):
+                merged[cik] = company
+    except requests.RequestException:
+        pass
 
-    if companies:
-        return companies
+    try:
+        fallback = requests.get(
+            SEC_COMPANY_TICKERS_URL,
+            headers=SEC_HEADERS,
+            timeout=30,
+        )
+        fallback.raise_for_status()
+        for company in _parse_company_tickers(fallback.json()):
+            cik = str(company.get("cik_str", "")).zfill(10)
+            if not cik.strip("0"):
+                continue
+            if cik not in merged:
+                merged[cik] = company
+            elif not merged[cik].get("exchange") and company.get("exchange"):
+                merged[cik]["exchange"] = company["exchange"]
+    except requests.RequestException:
+        pass
 
-    fallback = requests.get(
-        SEC_COMPANY_TICKERS_URL,
-        headers=SEC_HEADERS,
-        timeout=30,
-    )
-    fallback.raise_for_status()
-    return list(fallback.json().values())
+    if merged:
+        return list(merged.values())
+
+    raise RuntimeError("SEC company ticker data could not be retrieved.")
 
 
 @lru_cache(maxsize=1)
@@ -137,10 +181,6 @@ def _is_corporate_name_match(query, title):
     if base_title == normalized_query:
         return True
 
-    # Permit a short, commonly used corporate name when the remaining words
-    # are a recognized legal suffix or a descriptive corporate word followed by
-    # a legal suffix. This covers names such as Toyota Motor Corporation while
-    # still rejecting unrelated issuers such as Toyota Industries Corporation.
     remaining = title_words[len(query_words):]
     if all(word in LEGAL_SUFFIXES for word in remaining):
         return True
@@ -229,7 +269,7 @@ def find_company(query):
 
     fallback_corporate = _dedupe_companies([
         company for company in cik_companies
-        if _is_corporate_name_match(normalized_query, company.get("title", ""))
+        if _is_corporate_name_match(normalized_query, company.get("title"))
     ])
     if len(fallback_corporate) == 1:
         return fallback_corporate[0]
