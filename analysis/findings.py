@@ -83,6 +83,41 @@ def generate_findings(result):
             ),
         })
 
+    financial_data = result.get("financial_data", {})
+    revenue_data = sorted(financial_data.get("revenue", []), key=lambda item: item.get("year", 0))
+    net_income_data = sorted(financial_data.get("net_income", []), key=lambda item: item.get("year", 0))
+    if len(revenue_data) >= 2 and len(net_income_data) >= 2:
+        latest_revenue = revenue_data[-1].get("value")
+        previous_revenue = revenue_data[-2].get("value")
+        latest_net_income = net_income_data[-1].get("value")
+        previous_net_income = net_income_data[-2].get("value")
+        if (
+            latest_revenue is not None
+            and previous_revenue not in (None, 0)
+            and latest_net_income is not None
+            and previous_net_income not in (None, 0)
+        ):
+            latest_margin = (latest_net_income / latest_revenue) * 100
+            previous_margin = (previous_net_income / previous_revenue) * 100
+            margin_change = latest_margin - previous_margin
+            if net_income_growth is None:
+                net_income_growth = ((latest_net_income - previous_net_income) / abs(previous_net_income)) * 100
+            if net_income_growth - revenue_growth >= 20 and margin_change >= 3:
+                findings.append({
+                    "priority": "Low",
+                    "title": "Profit margin expanded materially",
+                    "evidence": (
+                        f"Net income growth ({net_income_growth:.2f}%) exceeded revenue growth "
+                        f"({revenue_growth:.2f}%) by at least 20 percentage points, while the "
+                        f"profit margin increased from {previous_margin:.2f}% to {latest_margin:.2f}%."
+                    ),
+                    "why_it_matters": (
+                        "A material increase in profitability can have ordinary business explanations, "
+                        "such as pricing, product mix, cost reductions, or tax effects. It is included as "
+                        "a low-priority screening signal so the underlying income-statement drivers can be reviewed."
+                    ),
+                })
+
     accrual_risk = accruals.get("risk_score", 0)
     if accrual_risk >= 50:
         findings.append({
