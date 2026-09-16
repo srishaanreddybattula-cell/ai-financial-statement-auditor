@@ -13,9 +13,7 @@ def test_normalize_annual_data_keeps_latest_filing():
         {"year": 2024, "value": 110, "filed": "2024-11-01"},
         {"year": 2025, "value": 120, "filed": "2025-10-01"},
     ]
-
     result = normalize_annual_data(data)
-
     assert result == [
         {"year": 2024, "value": 110, "filed": "2024-11-01"},
         {"year": 2025, "value": 120, "filed": "2025-10-01"},
@@ -34,7 +32,6 @@ def test_risk_score_zero_and_full_scale():
     }
     assert calculate_risk_score(dimensions) == 0
     assert get_risk_category(0) == "Very Low"
-
     dimensions = {name: 100 for name in dimensions}
     assert calculate_risk_score(dimensions) == 100
     assert get_risk_category(100) == "Very High"
@@ -46,7 +43,6 @@ def test_historical_anomaly_detection_requires_enough_history():
         {"year": 2024, "value": 110},
         {"year": 2025, "value": 121},
     ]
-
     assert detect_historical_growth_anomalies(data) == []
 
 
@@ -56,9 +52,7 @@ def test_growth_acceleration_detects_large_change():
         {"year": 2023, "value": 105},
         {"year": 2024, "value": 130},
     ]
-
     result = detect_growth_acceleration(data, change_threshold=10)
-
     assert len(result) == 1
     assert result[0]["year"] == 2024
     assert result[0]["growth_change"] > 10
@@ -78,10 +72,8 @@ def test_findings_detect_receivables_and_dso_signals():
         "policy_analysis": None,
         "accounting_topics": {},
     }
-
     findings = generate_findings(result)
     titles = {finding["title"] for finding in findings}
-
     assert "Receivables are growing faster than revenue" in titles
     assert "Days sales outstanding increased" in titles
 
@@ -97,15 +89,19 @@ def test_findings_detect_profit_margin_expansion():
             "cash_flow_conversion": 95.0,
         },
         "accruals": {},
-        "net_income": 130.0,
-        "previous_net_income": 100.0,
-        "revenue": 105.0,
-        "previous_revenue": 100.0,
+        "financial_data": {
+            "revenue": [
+                {"year": 2024, "value": 100.0},
+                {"year": 2025, "value": 105.0},
+            ],
+            "net_income": [
+                {"year": 2024, "value": 100.0},
+                {"year": 2025, "value": 130.0},
+            ],
+        },
         "policy_analysis": None,
         "accounting_topics": {},
     }
-
     findings = generate_findings(result)
     titles = {finding["title"] for finding in findings}
-
     assert "Profit margin expanded materially" in titles
