@@ -52,6 +52,18 @@ def add_peer_analysis(result, ticker):
         "ocf_conversion": cash_flow.get("cash_flow_conversion"),
     }
 
+    # Some SEC filers have a CIK and filings but no current ticker/exchange
+    # association. They can still receive the main analysis; peer comparison
+    # is simply skipped because the peer dataset is ticker-based.
+    if not ticker:
+        result["peer_comparison"] = {
+            "risk_score": 0,
+            "comparison_year": comparison_year,
+            "peers": [],
+            "message": "Peer comparison is unavailable because this SEC filer has no ticker mapping.",
+        }
+        return result
+
     company = find_company(ticker)
     normalized_ticker = company.get("ticker") if company else ticker.upper().strip()
     peer_metrics = collect_peer_metrics(normalized_ticker, target_year=comparison_year)
