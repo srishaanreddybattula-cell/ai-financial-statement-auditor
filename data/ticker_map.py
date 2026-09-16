@@ -11,9 +11,27 @@ SEC_COMPANY_TICKERS_EXCHANGE_URL = "https://www.sec.gov/files/company_tickers_ex
 SEC_CIK_LOOKUP_URL = "https://www.sec.gov/Archives/edgar/cik-lookup-data.txt"
 
 
+# Legal suffixes are removed only when they appear at the END of a company name.
+# This lets "Apple" resolve to "Apple Inc." without treating every company whose
+# name merely contains the word "Apple" as a match.
+LEGAL_SUFFIXES = {
+    "inc", "incorporated", "corp", "corporation", "co", "company",
+    "ltd", "limited", "plc", "holdings", "holding", "group", "sa",
+    "ag", "nv", "se", "spa", "sarl", "pte", "llc", "lp", "llp",
+}
+
+
 def _normalize_query(value):
     """Normalize user input so capitalization and punctuation do not matter."""
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().lower()).strip()
+
+
+def _base_company_name(value):
+    """Return a normalized name with trailing legal suffixes removed."""
+    words = _normalize_query(value).split()
+    while len(words) > 1 and words[-1] in LEGAL_SUFFIXES:
+        words.pop()
+    return " ".join(words)
 
 
 @lru_cache(maxsize=1)
@@ -98,22 +116,16 @@ def _is_corporate_name_match(query, title):
         return False
     if title_words[:len(query_words)] != query_words:
         return False
-
-    common_suffixes = {
-        "inc", "incorporated", "corp", "corporation", "co", "company",
-        "ltd", "limited", "plc", "holdings", "holding", "group",
-    }
-    return any(word in common_suffixes for word in title_words[len(query_words):])
+    return all(word in LEGAL_SUFFIXES for word in title_words[len(query_words):])
 
 
 def find_company(query):
     """Find an SEC-reporting issuer by ticker or company name.
 
     Matching is case-insensitive and ignores punctuation/spacing differences.
-    Exact ticker matches are preferred, followed by exact company-name matches,
-    then clear corporate-name matches such as 'Apple' -> 'Apple Inc.'.
-    If the ticker dataset cannot identify a name, SEC's broader CIK/name
-    database is used as a fallback.
+    Exact ticker matches are preferred, followed by exact legal/base company-name
+    matches and then carefully limited partial matches. The broader SEC CIK/name
+    database is used as a fallback for filers without ticker associations.
     """
     normalized_query = _normalize_query(query)
     if not normalized_query:
@@ -121,7 +133,7 @@ def find_company(query):
 
     companies = _dedupe_companies(get_sec_companies())
 
-    # Exact ticker always wins. This supports AAPL, aapl, or Aapl.
+    # 1. Exact ticker always wins. Supports AAPL, aapl, or Aapl.
     ticker_matches = [
         company
         for company in companies
@@ -130,7 +142,7 @@ def find_company(query):
     if ticker_matches:
         return ticker_matches[0]
 
-    # Exact company name, case-insensitive. This supports 'Apple Inc.' in any case.
+    # 2. Exact legal company name.
     name_matches = [
         company
         for company in companies
@@ -143,7 +155,19 @@ def find_company(query):
         if len(unique) == 1:
             return unique[0]
 
-    # For short common names, prefer a clear legal-company-name match.
+    # 3. Exact base company name. Examples: Apple -> Apple Inc.;
+    # Microsoft -> Microsoft Corporation. This is intentionally stricter
+    # than substring matching so "Apple" does not collide with Apple-related issuers.
+    base_matches = _dedupe_companies([
+        company
+        for company in companies
+        if _base_company_name(company.get("title")) == normalized_query
+    ])
+    if len(base_matches) == 1:
+        return base_matches[0]
+
+    # 4. Prefix + legal suffix only. This catches simple company-name inputs
+    # while avoiding broad substring ambiguity.
     corporate_matches = _dedupe_companies([
         company
         for company in companies
@@ -152,7 +176,7 @@ def find_company(query):
     if len(corporate_matches) == 1:
         return corporate_matches[0]
 
-    # Unique partial name match from ticker/exchange associations.
+    # 5. Unique partial name match from ticker/exchange associations.
     partial_matches = _dedupe_companies([
         company
         for company in companies
@@ -161,8 +185,9 @@ def find_company(query):
     if len(partial_matches) == 1:
         return partial_matches[0]
 
-    # Broader SEC CIK/name fallback for filers without a ticker/exchange entry.
+    # 6. Broader SEC CIK/name fallback for filers without a ticker/exchange entry.
     cik_companies = _dedupe_companies(get_sec_cik_names())
+
     fallback_exact = [
         company
         for company in cik_companies
@@ -170,6 +195,14 @@ def find_company(query):
     ]
     if len(fallback_exact) == 1:
         return fallback_exact[0]
+
+    fallback_base = _dedupe_companies([
+        company
+        for company in cik_companies
+        if _base_company_name(company.get("title")) == normalized_query
+    ])
+    if len(fallback_base) == 1:
+        return fallback_base[0]
 
     fallback_corporate = _dedupe_companies([
         company
