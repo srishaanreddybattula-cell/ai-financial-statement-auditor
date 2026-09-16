@@ -143,7 +143,17 @@ def _add_financial_data_sheet(workbook, result):
         ("Goodwill", financial_data.get("goodwill", [])),
     ]
 
-    sheet.append(["Metric", "Year", "Value", "Filed", "Period start", "Period end"])
+    sheet.append([
+        "Metric",
+        "Year",
+        "Value",
+        "Form",
+        "Filed",
+        "SEC accession number",
+        "Period start",
+        "Period end",
+        "SEC frame",
+    ])
     _style_header(sheet)
     for metric, values in fields:
         for item in values:
@@ -151,9 +161,12 @@ def _add_financial_data_sheet(workbook, result):
                 metric,
                 item.get("year"),
                 item.get("value"),
+                item.get("form"),
                 item.get("filed"),
+                item.get("accn"),
                 item.get("start"),
                 item.get("end"),
+                item.get("frame"),
             ])
 
 
