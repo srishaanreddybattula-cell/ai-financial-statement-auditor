@@ -159,6 +159,7 @@ def get_capex(company_facts):
         [
             "PaymentsToAcquirePropertyPlantAndEquipment",
             "PurchaseOfPropertyPlantAndEquipment",
+            "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
             "PaymentsToAcquirePropertyPlantAndEquipmentClassifiedAsInvestingActivities",
         ],
     )
