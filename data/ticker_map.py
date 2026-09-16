@@ -28,7 +28,7 @@ def _normalize_query(value):
 
 
 def _base_company_name(value):
-    """Return a normalized name with trailing legal suffixes/descriptors removed."""
+    """Return a normalized name with trailing legal suffixes removed."""
     words = _normalize_query(value).split()
     while len(words) > 1:
         if words[-1] in LEGAL_SUFFIXES:
@@ -42,14 +42,6 @@ def _base_company_name(value):
                 break
         if not removed_compound:
             break
-
-    # International issuers often use descriptors between the core name and
-    # the legal suffix, e.g. Alibaba Group Holding Limited. Strip only known
-    # descriptors at the end so unrelated names such as Apple Hospitality REIT
-    # remain distinct.
-    while len(words) > 1 and words[-1] in NAME_DESCRIPTORS:
-        words.pop()
-
     return " ".join(words)
 
 
