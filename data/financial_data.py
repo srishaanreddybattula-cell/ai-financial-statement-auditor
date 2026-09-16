@@ -58,26 +58,44 @@ def _annual_value_records(fact):
 
 
 def _get_fact_from_namespaces(company_facts, candidates):
-    """Choose the best annual SEC concept across US-GAAP and IFRS.
+    """Choose the most current usable annual SEC concept across namespaces.
 
-    SEC Company Facts can expose more than one valid concept for the same
-    metric. Prefer the concept with the most usable annual observations, using
-    candidate order as the tie-breaker. This is important for foreign issuers
-    using IFRS concepts in 20-F or 40-F filings.
+    A company can expose several concepts for the same metric. The previous
+    implementation chose the concept with the largest number of observations,
+    which could select an obsolete tag with many historical values and make the
+    app report an old "latest" fiscal year. Prefer the concept whose annual
+    observations reach the latest fiscal year, then prefer the concept with the
+    longest usable history, while retaining candidate order as the final tie-break.
     """
     facts = company_facts.get("facts", {})
     namespaces = ["us-gaap", "ifrs-full"]
     best_result = []
+    best_key = None
 
-    for namespace in namespaces:
+    for namespace_index, namespace in enumerate(namespaces):
         namespace_facts = facts.get(namespace, {})
-        for tag in candidates:
+        for candidate_index, tag in enumerate(candidates):
             fact = namespace_facts.get(tag)
             if not fact:
                 continue
+
             result = _annual_value_records(fact)
-            if len(result) > len(best_result):
+            if not result:
+                continue
+
+            latest_year = result[-1].get("year")
+            # Latest annual period is the primary selection criterion. History
+            # length is secondary so we still prefer a concept with useful
+            # coverage when two concepts reach the same current year.
+            key = (
+                latest_year if latest_year is not None else -1,
+                len(result),
+                -namespace_index,
+                -candidate_index,
+            )
+            if best_key is None or key > best_key:
                 best_result = result
+                best_key = key
 
     return best_result
 
