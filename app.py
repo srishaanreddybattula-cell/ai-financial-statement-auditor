@@ -1,4 +1,5 @@
 import streamlit as st
+from pathlib import Path
 
 from analysis.findings import generate_findings
 from analysis.pipeline import analyze_company
@@ -13,14 +14,31 @@ from reports.excel_report import build_excel_report
 from reports.pdf_report import build_pdf_report
 
 
-st.set_page_config(page_title="AI Financial Statement Auditor", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Aurevia | Financial Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 
-st.title("AI Financial Statement Auditor")
-st.caption("SEC-grounded financial reporting risk analysis — not an audit opinion or fraud detector.")
+# Load the custom dark dashboard theme from the repository.
+st.markdown(f"<style>{Path('theme.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+
+# Branded sidebar
+with st.sidebar:
+    st.markdown("<div class='brand'><span class='brand-mark'>◈</span><span>Aurevia</span></div>", unsafe_allow_html=True)
+    st.caption("Financial intelligence, grounded in SEC data")
+    st.divider()
+    st.markdown("### ◈  Home")
+    st.markdown("### ⌕  Company Analysis")
+    st.markdown("### ▣  Financial Statements")
+    st.markdown("### ◫  Key Metrics")
+    st.markdown("### ⇄  Compare Companies")
+    st.markdown("### ♧  Saved Reports")
+    st.markdown("<div class='sidebar-footer'><b>Smarter finance.</b><br>Deeper insights.</div>", unsafe_allow_html=True)
+
+st.markdown("<div class='eyebrow'>AI FINANCIAL INTELLIGENCE</div>", unsafe_allow_html=True)
+st.title("Welcome to Aurevia")
+st.caption("Analyze a company's financials with SEC-grounded AI-powered insights.")
 
 with st.form("company_form"):
-    company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL")
-    submitted = st.form_submit_button("Analyze company")
+    company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL", label_visibility="collapsed")
+    submitted = st.form_submit_button("Analyze  →", use_container_width=False)
 
 if submitted:
     company_query = company_input.strip()
@@ -267,4 +285,4 @@ if submitted:
         st.download_button("Download Excel report", data=excel_bytes, file_name=f"{ticker or cik}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 st.divider()
-st.caption("Prototype for financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
+st.caption("Aurevia is a prototype for SEC-grounded financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
