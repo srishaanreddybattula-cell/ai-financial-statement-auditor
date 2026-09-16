@@ -202,6 +202,28 @@ def build_pdf_report(result, company_name, ticker, cik):
     else:
         story.append(Paragraph("No latest 10-K policy section was available.", body_style))
 
+    goodwill = result.get("goodwill_analysis", {})
+    story.append(Paragraph("Goodwill analysis", section_style))
+    if goodwill.get("goodwill_to_assets") is None:
+        story.append(Paragraph(goodwill.get("message", "Not enough data to analyze goodwill."), body_style))
+    else:
+        goodwill_rows = [
+            ["Metric", "Value"],
+            ["Goodwill / total assets", f"{goodwill['goodwill_to_assets']:.2f}%"],
+            [
+                "Year-over-year goodwill change",
+                "N/A" if goodwill.get("goodwill_change") is None else f"{goodwill['goodwill_change']:.2f}%",
+            ],
+            [
+                "Screening status",
+                "Review suggested" if goodwill.get("flag") else "No threshold triggered",
+            ],
+        ]
+        goodwill_table = Table(goodwill_rows, colWidths=[4.8 * inch, 2.0 * inch], repeatRows=1)
+        goodwill_table.setStyle(_table_style())
+        story.append(goodwill_table)
+        story.append(Paragraph(goodwill.get("message", ""), body_style))
+
     filing = result.get("filing")
     story.append(Paragraph("Source filing", section_style))
     if filing:
