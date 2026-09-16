@@ -191,8 +191,14 @@ def get_debt(company_facts):
 
 
 def get_goodwill(company_facts):
-    """Extract annual goodwill balances from 10-K filings when reported."""
-    return get_fact(company_facts, "Goodwill")
+    """Extract only recent annual goodwill balances aligned with current assets."""
+    goodwill = get_fact(company_facts, "Goodwill")
+    assets = get_fact(company_facts, "Assets")
+    if not goodwill or not assets:
+        return []
+
+    latest_asset_year = assets[-1]["year"]
+    return [item for item in goodwill if item["year"] in {latest_asset_year, latest_asset_year - 1}]
 
 
 def get_financial_data(company_facts):
