@@ -1,0 +1,11 @@
+/* Aegis dark dashboard theme */
+.stApp { background: radial-gradient(circle at 82% 8%, rgba(42, 80, 180, .16), transparent 28%), linear-gradient(135deg, #030916 0%, #061225 55%, #020711 100%); color: #edf4ff; }
+section[data-testid="stSidebar"] { background: linear-gradient(180deg, #061124 0%, #030a16 100%); border-right: 1px solid rgba(80,140,255,.22); }
+section[data-testid="stSidebar"] * { color: #dce9ff; }
+[data-testid="stMetric"] { background: rgba(8,20,40,.72); border: 1px solid rgba(73,137,255,.24); border-radius: 16px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+[data-testid="stMetricValue"] { color: #f4f8ff; }
+.stButton > button, .stDownloadButton > button { border: 1px solid rgba(56,214,190,.45); border-radius: 12px; background: linear-gradient(90deg,#19d3a2,#4c63ff); color: white; font-weight: 700; }
+.stTextInput input { background: rgba(4,13,29,.88); color: white; border: 1px solid rgba(65,139,255,.48); border-radius: 14px; }
+div[data-testid="stExpander"], div[data-testid="stDataFrame"] { border-color: rgba(72,136,255,.22); }
+.stProgress > div > div > div > div { background: linear-gradient(90deg,#18d6a0,#27c8ff,#6b5cff); }
+hr { border-color: rgba(70,130,240,.18); }
