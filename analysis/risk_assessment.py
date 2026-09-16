@@ -4,7 +4,7 @@ def assess_policy_risk(accounting_topics):
     Normal disclosure of an accounting policy is not itself treated as elevated risk.
     """
     if not accounting_topics:
-        return 0
+        return None
 
     risk_score = 0
 
@@ -21,50 +21,76 @@ def assess_policy_risk(accounting_topics):
     return min(risk_score, 100)
 
 
-def assess_risk_dimensions(indicators):
-    """Map screening indicators into non-overlapping risk dimensions.
+def _threshold_risk(value, low_threshold, high_threshold, higher_is_riskier):
+    if value is None:
+        return None
 
-    Each dimension should represent a distinct source of reporting risk rather
-    than counting the same signal in multiple dimensions.
+    if higher_is_riskier:
+        if value >= high_threshold:
+            return 40
+        if value >= low_threshold:
+            return 20
+    else:
+        if value <= high_threshold:
+            return 40
+        if value <= low_threshold:
+            return 20
+
+    return 0
+
+
+def assess_risk_dimensions(indicators):
+    """Map screening indicators into distinct risk dimensions.
+
+    ``None`` means the required underlying data was unavailable. It is kept
+    separate from 0, which means the available data did not trigger a rule.
     """
     revenue_quality = 0
-    accrual_quality = 0
-    cash_flow_quality = 0
     working_capital = 0
-    accounting_policy_risk = 0
-    leverage_liquidity = 0
-    peer_deviation = 0
 
-    # Revenue quality owns receivables-vs-revenue and DSO signals.
-    if indicators["revenue_vs_receivables"]["flag"]:
+    if indicators.get("revenue_vs_receivables", {}).get("flag"):
         revenue_quality += 50
 
-    if indicators["dso"]["flag"]:
+    if indicators.get("dso", {}).get("flag"):
         revenue_quality += 30
 
-    # Accrual and cash-flow dimensions are populated from their dedicated
-    # analysis modules in the pipeline.
-
-    # Working capital owns the inventory signal. Liquidity is handled by the
-    # leverage/liquidity dimension so the current ratio is not double-counted.
-    if indicators["inventory_vs_revenue"]["flag"]:
+    if indicators.get("inventory_vs_revenue", {}).get("flag"):
         working_capital += 40
 
-    if indicators["current_ratio"]["flag"]:
-        leverage_liquidity += 40
+    leverage_liquidity = 0
+    ratio_risk = _threshold_risk(
+        indicators.get("current_ratio", {}).get("value"),
+        low_threshold=0.8,
+        high_threshold=1.0,
+        higher_is_riskier=False,
+    )
+    if ratio_risk is not None:
+        leverage_liquidity += ratio_risk
 
-    if indicators["debt"]["flag"]:
-        leverage_liquidity += 40
+    debt_risk = _threshold_risk(
+        indicators.get("debt_to_assets", {}).get("value"),
+        low_threshold=0.30,
+        high_threshold=0.50,
+        higher_is_riskier=True,
+    )
+    if debt_risk is not None:
+        leverage_liquidity += debt_risk
 
-    if indicators["liabilities_vs_assets"]["flag"]:
-        leverage_liquidity += 20
+    liabilities_risk = _threshold_risk(
+        indicators.get("liabilities_to_assets", {}).get("value"),
+        low_threshold=0.60,
+        high_threshold=0.80,
+        higher_is_riskier=True,
+    )
+    if liabilities_risk is not None:
+        leverage_liquidity += liabilities_risk
 
     return {
         "revenue_quality": min(revenue_quality, 100),
-        "accrual_quality": min(accrual_quality, 100),
-        "cash_flow_quality": min(cash_flow_quality, 100),
+        "accrual_quality": None,
+        "cash_flow_quality": None,
         "working_capital": min(working_capital, 100),
-        "accounting_policy_risk": accounting_policy_risk,
+        "accounting_policy_risk": None,
         "leverage_liquidity": min(leverage_liquidity, 100),
-        "peer_deviation": peer_deviation
+        "peer_deviation": None,
     }
