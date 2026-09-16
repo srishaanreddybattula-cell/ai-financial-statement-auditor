@@ -5,7 +5,6 @@ def _fact_metadata(value):
     return {
         "form": value.get("form"),
         "accn": value.get("accn"),
-        "accession_number": value.get("accn"),
         "frame": value.get("frame"),
     }
 
