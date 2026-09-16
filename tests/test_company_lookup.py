@@ -2,6 +2,7 @@ from data.ticker_map import (
     _base_company_name,
     _is_corporate_name_match,
     _normalize_query,
+    _parse_company_tickers,
 )
 
 
@@ -42,3 +43,20 @@ def test_simple_name_does_not_match_unrelated_issuer_with_same_prefix():
     assert not _is_corporate_name_match("Microsoft", "Microsoft 365 Holdings Inc.")
     assert not _is_corporate_name_match("Toyota", "Toyota Industries Corporation")
     assert not _is_corporate_name_match("Technology", "Technology Partners Inc.")
+
+
+def test_sec_ticker_parser_supports_both_sec_json_shapes():
+    exchange_payload = {
+        "fields": ["cik", "name", "ticker", "exchange"],
+        "data": [[123, "Example Holdings Ltd.", "EXM", "NASDAQ"]],
+    }
+    legacy_payload = {
+        "0": {"cik_str": 456, "ticker": "LEG", "title": "Legacy Corp", "exchange": "NYSE"}
+    }
+
+    assert _parse_company_tickers(exchange_payload) == [
+        {"cik_str": 123, "ticker": "EXM", "title": "Example Holdings Ltd.", "exchange": "NASDAQ"}
+    ]
+    assert _parse_company_tickers(legacy_payload) == [
+        {"cik_str": 456, "ticker": "LEG", "title": "Legacy Corp", "exchange": "NYSE"}
+    ]
