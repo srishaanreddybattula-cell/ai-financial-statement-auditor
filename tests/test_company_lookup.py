@@ -10,7 +10,9 @@ def test_common_global_company_names_normalize_cleanly():
     assert _base_company_name("Microsoft Corporation") == "microsoft"
     assert _base_company_name("NVIDIA Corporation") == "nvidia"
     assert _base_company_name("Alphabet Inc.") == "alphabet"
-    assert _base_company_name("Alibaba Group Holding Limited") == "alibaba"
+    # "Group" and "Holding" are meaningful name descriptors, not legal
+    # suffixes, so they remain in the base name for conservative matching.
+    assert _base_company_name("Alibaba Group Holding Limited") == "alibaba group holding"
     assert _base_company_name("ASML Holding N.V.") == "asml holding"
 
 
@@ -24,6 +26,8 @@ def test_simple_name_matches_legal_suffix():
     assert _is_corporate_name_match("Apple", "Apple Inc.")
     assert _is_corporate_name_match("Microsoft", "Microsoft Corporation")
     assert _is_corporate_name_match("NVIDIA", "NVIDIA Corporation")
+    assert _is_corporate_name_match("Alibaba", "Alibaba Group Holding Limited")
+    assert _is_corporate_name_match("ASML", "ASML Holding N.V.")
     assert _is_corporate_name_match("Alibaba Group Holding", "Alibaba Group Holding Limited")
 
 
