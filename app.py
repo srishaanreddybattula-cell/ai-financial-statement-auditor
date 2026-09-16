@@ -19,7 +19,7 @@ st.title("AI Financial Statement Auditor")
 st.caption("SEC-grounded financial reporting risk analysis — not an audit opinion or fraud detector.")
 
 with st.form("company_form"):
-    company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, or AAPL")
+    company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL")
     submitted = st.form_submit_button("Analyze company")
 
 if submitted:
@@ -47,7 +47,8 @@ if submitted:
 
     company_name = submissions.get("name", company["name"])
     st.subheader(company_name)
-    st.write(f"Ticker: **{ticker}** · CIK: **{cik}**")
+    ticker_display = ticker or "No ticker mapped"
+    st.write(f"Ticker: **{ticker_display}** · CIK: **{cik}**")
 
     score_col, category_col, year_col = st.columns(3)
     score_col.metric("Financial Reporting Risk Score", f"{result['risk_score']:.2f}/100")
@@ -233,7 +234,7 @@ if submitted:
     st.header("Accounting policy review")
     policy = result.get("policy_analysis")
     if policy is None:
-        st.write("No latest 10-K policy section was available.")
+        st.write("No latest annual policy section was available.")
     else:
         st.write("Policy keyword matches are displayed as evidence for review. Normal accounting disclosures are not automatically treated as misconduct.")
         for policy_name, matches in policy["policy_matches"].items():
@@ -251,7 +252,7 @@ if submitted:
     if result.get("filing"):
         st.header("Source filing")
         filing = result["filing"]
-        st.write(f"Form 10-K · filed {filing['filing_date']} · report date {filing['report_date']}")
+        st.write(f"Form {filing.get('form', 'annual report')} · filed {filing['filing_date']} · report date {filing['report_date']}")
         st.write(f"Primary document: `{filing['primary_document']}`")
         if filing.get("sec_url"):
             st.link_button("Open filing on SEC.gov", filing["sec_url"])
@@ -260,10 +261,10 @@ if submitted:
     report_col1, report_col2 = st.columns(2)
     with report_col1:
         pdf_bytes = build_pdf_report(result, company_name, ticker, cik)
-        st.download_button("Download PDF report", data=pdf_bytes, file_name=f"{ticker}_financial_reporting_risk_report.pdf", mime="application/pdf")
+        st.download_button("Download PDF report", data=pdf_bytes, file_name=f"{ticker or cik}_financial_reporting_risk_report.pdf", mime="application/pdf")
     with report_col2:
         excel_bytes = build_excel_report(result, company_name, ticker, cik)
-        st.download_button("Download Excel report", data=excel_bytes, file_name=f"{ticker}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Download Excel report", data=excel_bytes, file_name=f"{ticker or cik}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 st.divider()
 st.caption("Prototype for financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
