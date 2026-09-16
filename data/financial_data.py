@@ -1,6 +1,14 @@
 from datetime import date
 
 
+def _fact_metadata(value):
+    return {
+        "form": value.get("form"),
+        "accn": value.get("accn"),
+        "frame": value.get("frame"),
+    }
+
+
 def get_fact(company_facts, fact_name):
     try:
         fact = company_facts["facts"]["us-gaap"][fact_name]
@@ -34,24 +42,19 @@ def get_fact(company_facts, fact_name):
                     continue
 
             year = int(end[:4])
+            record = {
+                "year": year,
+                "value": value.get("val"),
+                "filed": filed,
+                "start": start,
+                "end": end,
+                **_fact_metadata(value),
+            }
 
             if year not in yearly_values:
-                yearly_values[year] = {
-                    "year": year,
-                    "value": value.get("val"),
-                    "filed": filed,
-                    "start": start,
-                    "end": end
-                }
-            else:
-                if filed > yearly_values[year]["filed"]:
-                    yearly_values[year] = {
-                        "year": year,
-                        "value": value.get("val"),
-                        "filed": filed,
-                        "start": start,
-                        "end": end
-                    }
+                yearly_values[year] = record
+            elif filed > yearly_values[year]["filed"]:
+                yearly_values[year] = record
 
         results.extend(yearly_values.values())
 
@@ -108,23 +111,19 @@ def get_capex(company_facts):
                 continue
 
             year = end_date.year
+            record = {
+                "year": year,
+                "value": value.get("val"),
+                "filed": filed,
+                "start": start,
+                "end": end,
+                **_fact_metadata(value),
+            }
 
             if year not in yearly_results:
-                yearly_results[year] = {
-                    "year": year,
-                    "value": value.get("val"),
-                    "filed": filed,
-                    "start": start,
-                    "end": end
-                }
+                yearly_results[year] = record
             elif filed > yearly_results[year]["filed"]:
-                yearly_results[year] = {
-                    "year": year,
-                    "value": value.get("val"),
-                    "filed": filed,
-                    "start": start,
-                    "end": end
-                }
+                yearly_results[year] = record
 
     return sorted(
         yearly_results.values(),
@@ -165,7 +164,9 @@ def get_debt(company_facts):
                         "current": 0,
                         "noncurrent": 0,
                         "filed": filed,
-                        "end": end
+                        "end": end,
+                        "accn": value.get("accn"),
+                        "form": value.get("form"),
                     }
 
                 if tag == current_tag:
@@ -176,6 +177,8 @@ def get_debt(company_facts):
 
                 if filed > yearly_results[year]["filed"]:
                     yearly_results[year]["filed"] = filed
+                    yearly_results[year]["accn"] = value.get("accn")
+                    yearly_results[year]["form"] = value.get("form")
 
     for year, item in yearly_results.items():
         item["value"] = item["current"] + item["noncurrent"]
