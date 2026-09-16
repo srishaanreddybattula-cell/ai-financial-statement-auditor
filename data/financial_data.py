@@ -5,6 +5,7 @@ def _fact_metadata(value):
     return {
         "form": value.get("form"),
         "accn": value.get("accn"),
+        "accession_number": value.get("accn"),
         "frame": value.get("frame"),
     }
 
@@ -196,64 +197,17 @@ def get_goodwill(company_facts):
 
 def get_financial_data(company_facts):
     return {
-        "revenue": get_fact(
-            company_facts,
-            "RevenueFromContractWithCustomerExcludingAssessedTax"
-        ),
-
-        "net_income": get_net_income(
-            company_facts
-        ),
-
-        "assets": get_fact(
-            company_facts,
-            "Assets"
-        ),
-
-        "cash": get_fact(
-            company_facts,
-            "CashAndCashEquivalentsAtCarryingValue"
-        ),
-
-        "liabilities": get_fact(
-            company_facts,
-            "Liabilities"
-        ),
-
-        "debt": get_debt(
-            company_facts
-        ),
-
-        "receivables": get_fact(
-            company_facts,
-            "AccountsReceivableNetCurrent"
-        ),
-
-        "inventory": get_fact(
-            company_facts,
-            "InventoryNet"
-        ),
-
-        "goodwill": get_goodwill(
-            company_facts
-        ),
-
-        "operating_cash_flow": get_fact(
-            company_facts,
-            "NetCashProvidedByUsedInOperatingActivities"
-        ),
-
-        "capital_expenditures": get_capex(
-            company_facts
-        ),
-
-        "current_assets": get_fact(
-            company_facts,
-            "AssetsCurrent"
-        ),
-
-        "current_liabilities": get_fact(
-            company_facts,
-            "LiabilitiesCurrent"
-        )
+        "revenue": get_fact(company_facts, "RevenueFromContractWithCustomerExcludingAssessedTax"),
+        "net_income": get_net_income(company_facts),
+        "assets": get_fact(company_facts, "Assets"),
+        "cash": get_fact(company_facts, "CashAndCashEquivalentsAtCarryingValue"),
+        "liabilities": get_fact(company_facts, "Liabilities"),
+        "debt": get_debt(company_facts),
+        "receivables": get_fact(company_facts, "AccountsReceivableNetCurrent"),
+        "inventory": get_fact(company_facts, "InventoryNet"),
+        "goodwill": get_goodwill(company_facts),
+        "operating_cash_flow": get_fact(company_facts, "NetCashProvidedByUsedInOperatingActivities"),
+        "capital_expenditures": get_capex(company_facts),
+        "current_assets": get_fact(company_facts, "AssetsCurrent"),
+        "current_liabilities": get_fact(company_facts, "LiabilitiesCurrent")
     }
