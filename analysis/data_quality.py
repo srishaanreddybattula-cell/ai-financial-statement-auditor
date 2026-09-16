@@ -11,14 +11,21 @@ REQUIRED_METRICS = {
 
 
 def assess_data_quality(financial_data):
-    """Summarize available annual financial metrics for screening coverage."""
+    """Summarize both metric availability and annual history needed for screening."""
     available = []
     missing = []
+    insufficient_history = []
+    annual_period_counts = {}
 
     for key, label in REQUIRED_METRICS.items():
-        values = financial_data.get(key, [])
+        values = financial_data.get(key, []) or []
+        years = {item.get("year") for item in values if item.get("year") is not None}
+        annual_period_counts[label] = len(years)
+
         if values:
             available.append(label)
+            if len(years) < 2:
+                insufficient_history.append(label)
         else:
             missing.append(label)
 
@@ -32,9 +39,14 @@ def assess_data_quality(financial_data):
     else:
         status = "Limited coverage"
 
+    screening_ready = not missing and not insufficient_history
+
     return {
         "coverage_percent": round(coverage, 2),
         "available": available,
         "missing": missing,
+        "insufficient_history": insufficient_history,
+        "annual_period_counts": annual_period_counts,
+        "screening_ready": screening_ready,
         "status": status,
     }
