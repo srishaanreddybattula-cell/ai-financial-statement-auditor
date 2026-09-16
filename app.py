@@ -112,6 +112,30 @@ if submitted:
             display = f"{value:.2f}"
         cols[index % 4].metric(label, display)
 
+    st.header("Goodwill analysis")
+    goodwill = result.get("goodwill_analysis", {})
+    goodwill_col1, goodwill_col2, goodwill_col3 = st.columns(3)
+
+    goodwill_to_assets = goodwill.get("goodwill_to_assets")
+    goodwill_change = goodwill.get("goodwill_change")
+    goodwill_flag = goodwill.get("flag", False)
+
+    goodwill_col1.metric(
+        "Goodwill / total assets",
+        f"{goodwill_to_assets:.2f}%" if goodwill_to_assets is not None else "N/A",
+    )
+    goodwill_col2.metric(
+        "Year-over-year goodwill change",
+        f"{goodwill_change:.2f}%" if goodwill_change is not None else "N/A",
+    )
+    goodwill_col3.metric("Screening status", "Review indicated" if goodwill_flag else "No threshold triggered")
+
+    st.caption(
+        "The goodwill screen is a prototype rule for impairment and acquisition-accounting review. "
+        "A large goodwill balance or decline does not by itself establish an impairment or accounting error."
+    )
+    st.write(goodwill.get("message", "Not enough data to analyze goodwill."))
+
     st.header("Financial trends")
 
     financial_data = result["financial_data"]
