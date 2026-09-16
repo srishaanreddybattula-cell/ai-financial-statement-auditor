@@ -4,6 +4,7 @@ from analysis.anomaly_detection import (
 )
 from analysis.findings import generate_findings
 from analysis.risk_score import calculate_risk_score, get_risk_category
+from data.financial_data import get_fact
 from data.normalizer import normalize_annual_data
 
 
@@ -105,3 +106,40 @@ def test_findings_detect_profit_margin_expansion():
     findings = generate_findings(result)
     titles = {finding["title"] for finding in findings}
     assert "Profit margin expanded materially" in titles
+
+
+def test_financial_fact_preserves_sec_provenance():
+    company_facts = {
+        "facts": {
+            "us-gaap": {
+                "TestMetric": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": 123,
+                                "form": "10-K",
+                                "filed": "2025-10-31",
+                                "accn": "0000000000-25-000001",
+                                "frame": "CY2025",
+                                "start": "2024-09-29",
+                                "end": "2025-09-27",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    result = get_fact(company_facts, "TestMetric")
+    assert result == [
+        {
+            "year": 2025,
+            "value": 123,
+            "filed": "2025-10-31",
+            "start": "2024-09-29",
+            "end": "2025-09-27",
+            "form": "10-K",
+            "accn": "0000000000-25-000001",
+            "frame": "CY2025",
+        }
+    ]
