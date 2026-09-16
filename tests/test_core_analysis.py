@@ -84,3 +84,28 @@ def test_findings_detect_receivables_and_dso_signals():
 
     assert "Receivables are growing faster than revenue" in titles
     assert "Days sales outstanding increased" in titles
+
+
+def test_findings_detect_profit_margin_expansion():
+    result = {
+        "revenue_growth": 5.0,
+        "receivables_growth": 5.0,
+        "working_capital": {},
+        "cash_flow": {
+            "net_income_growth": 30.0,
+            "ocf_growth": 20.0,
+            "cash_flow_conversion": 95.0,
+        },
+        "accruals": {},
+        "net_income": 130.0,
+        "previous_net_income": 100.0,
+        "revenue": 105.0,
+        "previous_revenue": 100.0,
+        "policy_analysis": None,
+        "accounting_topics": {},
+    }
+
+    findings = generate_findings(result)
+    titles = {finding["title"] for finding in findings}
+
+    assert "Profit margin expanded materially" in titles
