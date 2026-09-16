@@ -4,7 +4,7 @@ from analysis.anomaly_detection import (
 )
 from analysis.findings import generate_findings
 from analysis.risk_score import calculate_risk_score, get_risk_category
-from data.financial_data import get_fact
+from data.financial_data import get_fact, get_goodwill
 from data.normalizer import normalize_annual_data
 
 
@@ -140,6 +140,50 @@ def test_financial_fact_preserves_sec_provenance():
             "end": "2025-09-27",
             "form": "10-K",
             "accn": "0000000000-25-000001",
+            "accession_number": "0000000000-25-000001",
             "frame": "CY2025",
         }
     ]
+
+
+def test_goodwill_ignores_stale_facts():
+    company_facts = {
+        "facts": {
+            "us-gaap": {
+                "Goodwill": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": 900,
+                                "form": "10-K",
+                                "filed": "2017-11-01",
+                                "accn": "old",
+                                "end": "2017-09-30",
+                            }
+                        ]
+                    }
+                },
+                "Assets": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": 100000,
+                                "form": "10-K",
+                                "filed": "2025-10-31",
+                                "accn": "new",
+                                "end": "2025-09-27",
+                            },
+                            {
+                                "val": 90000,
+                                "form": "10-K",
+                                "filed": "2024-11-01",
+                                "accn": "prior",
+                                "end": "2024-09-28",
+                            },
+                        ]
+                    }
+                },
+            }
+        }
+    }
+    assert get_goodwill(company_facts) == []
