@@ -8,6 +8,7 @@ from data.sec_api import get_company_submissions
 from data.ticker_map import get_cik_from_ticker
 from data.xbrl import get_company_facts
 from data.normalizer import normalize_annual_data
+from reports.pdf_report import build_pdf_report
 
 
 st.set_page_config(
@@ -70,6 +71,8 @@ if submitted:
     )
 
     findings = generate_findings(result)
+    result["findings"] = findings
+    result["score_breakdown"] = calculate_score_breakdown(result["risk_dimensions"])
 
     st.header("Key findings")
 
@@ -194,7 +197,7 @@ if submitted:
     st.caption("Each dimension is capped at 100, multiplied by its model weight, and added to produce the 0–100 screening score.")
 
     breakdown_rows = []
-    for item in calculate_score_breakdown(risk_dimensions):
+    for item in result["score_breakdown"]:
         breakdown_rows.append(
             {
                 "Dimension": item["dimension"].replace("_", " ").title(),
@@ -306,6 +309,15 @@ if submitted:
         filing = result["filing"]
         st.write(f"Form 10-K · filed {filing['filing_date']} · report date {filing['report_date']}")
         st.write(f"Primary document: `{filing['primary_document']}`")
+
+    st.header("Download report")
+    pdf_bytes = build_pdf_report(result, company_name, ticker, cik)
+    st.download_button(
+        "Download PDF report",
+        data=pdf_bytes,
+        file_name=f"{ticker}_financial_reporting_risk_report.pdf",
+        mime="application/pdf",
+    )
 
 st.divider()
 st.caption("Prototype for financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
