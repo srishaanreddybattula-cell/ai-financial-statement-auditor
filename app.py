@@ -18,17 +18,39 @@ st.set_page_config(page_title="Aurevia | Financial Intelligence", page_icon="◈
 
 st.markdown(f"<style>{Path('theme.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
+NAV_ITEMS = [
+    ("home", "◈  Home"),
+    ("company_analysis", "⌕  Company Analysis"),
+    ("financial_statements", "▣  Financial Statements"),
+    ("key_metrics", "◫  Key Metrics"),
+    ("compare_companies", "⇄  Compare Companies"),
+    ("saved_reports", "♧  Saved Reports"),
+]
+
+if "nav_page" not in st.session_state:
+    st.session_state.nav_page = "home"
+
 with st.sidebar:
     st.markdown("<div class='brand'><span class='brand-mark'>◈</span><span>Aurevia</span></div>", unsafe_allow_html=True)
     st.caption("Financial intelligence, grounded in SEC data")
     st.divider()
-    st.markdown("### ◈  Home")
-    st.markdown("### ⌕  Company Analysis")
-    st.markdown("### ▣  Financial Statements")
-    st.markdown("### ◫  Key Metrics")
-    st.markdown("### ⇄  Compare Companies")
-    st.markdown("### ♧  Saved Reports")
+    for page_key, page_label in NAV_ITEMS:
+        if st.button(
+            page_label,
+            key=f"nav_{page_key}",
+            use_container_width=True,
+            type="primary" if st.session_state.nav_page == page_key else "secondary",
+        ):
+            st.session_state.nav_page = page_key
+            st.rerun()
     st.markdown("<div class='sidebar-footer'><b>Smarter finance.</b><br>Deeper insights.</div>", unsafe_allow_html=True)
+
+page_titles = dict(NAV_ITEMS)
+current_label = page_titles[st.session_state.nav_page].split("  ", 1)[-1]
+
+if st.session_state.nav_page != "home":
+    st.subheader(current_label)
+    st.caption(f"You are viewing the {current_label} section. Use the sidebar to switch sections.")
 
 st.markdown("<div class='eyebrow'>AI FINANCIAL INTELLIGENCE</div>", unsafe_allow_html=True)
 st.title("Welcome to Aurevia")
@@ -62,6 +84,19 @@ if submitted:
             st.stop()
 
     company_name = submissions.get("name", company["name"])
+    st.session_state.analysis_result = result
+    st.session_state.analysis_company_name = company_name
+    st.session_state.analysis_ticker = ticker
+    st.session_state.analysis_cik = cik
+    st.session_state.analysis_submissions = submissions
+else:
+    result = st.session_state.get("analysis_result")
+    company_name = st.session_state.get("analysis_company_name")
+    ticker = st.session_state.get("analysis_ticker")
+    cik = st.session_state.get("analysis_cik")
+    submissions = st.session_state.get("analysis_submissions")
+
+if result is not None:
     st.subheader(company_name)
     ticker_display = ticker or "No ticker mapped"
     st.write(f"Ticker: **{ticker_display}** · CIK: **{cik}**")
@@ -83,6 +118,7 @@ if submitted:
     findings = generate_findings(result)
     result["findings"] = findings
     result["score_breakdown"] = calculate_score_breakdown(result["risk_dimensions"])
+    st.session_state.analysis_result = result
 
     st.header("Key findings")
     if findings:
@@ -309,6 +345,9 @@ if submitted:
     with report_col2:
         excel_bytes = build_excel_report(result, company_name, ticker, cik)
         st.download_button("Download Excel report", data=excel_bytes, file_name=f"{ticker or cik}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+elif st.session_state.nav_page != "home":
+    st.info("Run a company analysis from the Home section to populate this area. Your analysis will stay available while you switch between sidebar sections.")
 
 st.divider()
 st.caption("Aurevia is a prototype for SEC-grounded financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
