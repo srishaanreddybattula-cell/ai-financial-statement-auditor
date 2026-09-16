@@ -33,6 +33,7 @@ def test_simple_name_matches_legal_suffix():
     assert _is_corporate_name_match("Sony", "Sony Group Corporation")
     assert _is_corporate_name_match("Alibaba Group Holding", "Alibaba Group Holding Limited")
     assert _is_corporate_name_match("Toyota Motor", "Toyota Motor Corporation")
+    assert _is_corporate_name_match("Toyota", "Toyota Motor Corporation")
 
 
 def test_simple_name_does_not_match_unrelated_issuer_with_same_prefix():
