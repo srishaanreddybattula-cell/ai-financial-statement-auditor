@@ -31,13 +31,11 @@ def build_excel_report(result, company_name, ticker, cik):
         summary.cell(row=row_number, column=1, value=label).font = header_font
         summary.cell(row=row_number, column=2, value=value)
 
-    # The analysis pipeline stores the selected 10-K under "filing".
-    # Keep the Excel report aligned with that canonical result structure.
     filing = result.get("filing") or {}
     summary["A10"] = "Source filing"
     summary["A10"].font = header_font
     source_rows = [
-        ("Form", "10-K" if filing else "N/A"),
+        ("Form", filing.get("form", "N/A") if filing else "N/A"),
         ("Filed", filing.get("filing_date", "N/A")),
         ("Report date", filing.get("report_date", "N/A")),
         ("Primary document", filing.get("primary_document", "N/A")),
@@ -125,57 +123,26 @@ def _add_findings_sheet(workbook, result):
             finding.get("evidence", "N/A"),
             finding.get("why_it_matters", "N/A"),
         ])
-    if not findings:
-        sheet.append(["", "No screening findings were triggered by the current rules.", "", ""])
 
 
 def _add_data_quality_sheet(workbook, result):
     sheet = workbook.create_sheet("Data Quality")
     sheet.append(["Metric", "Value"])
     _style_header(sheet)
-
-    data_quality = result.get("data_quality", {})
-    sheet.append(["Core metric coverage", data_quality.get("coverage_percent", 0)])
-    sheet.append(["Coverage status", data_quality.get("status", "Unknown")])
-    sheet.append(["Missing core metrics", ", ".join(data_quality.get("missing", [])) or "None"])
-    sheet.append([
-        "Explanation",
-        "Coverage measures whether the core annual financial metrics needed by the screening model are available. It does not measure the accuracy or completeness of the underlying SEC filing.",
-    ])
+    quality = result.get("data_quality") or {}
+    sheet.append(["Coverage percent", quality.get("coverage_percent", "N/A")])
+    sheet.append(["Status", quality.get("status", "N/A")])
+    sheet.append(["Missing core metrics", ", ".join(quality.get("missing", [])) or "None"])
+    sheet.append(["Insufficient-history metrics", ", ".join(quality.get("insufficient_history", [])) or "None"])
 
 
 def _add_financial_data_sheet(workbook, result):
     sheet = workbook.create_sheet("Financial Data")
-    financial_data = result.get("financial_data", {})
-    fields = [
-        ("Revenue", financial_data.get("revenue", [])),
-        ("Net income", financial_data.get("net_income", [])),
-        ("Assets", financial_data.get("assets", [])),
-        ("Cash", financial_data.get("cash", [])),
-        ("Liabilities", financial_data.get("liabilities", [])),
-        ("Debt", financial_data.get("debt", [])),
-        ("Receivables", financial_data.get("receivables", [])),
-        ("Inventory", financial_data.get("inventory", [])),
-        ("Operating cash flow", financial_data.get("operating_cash_flow", [])),
-        ("Capital expenditures", financial_data.get("capital_expenditures", [])),
-        ("Current assets", financial_data.get("current_assets", [])),
-        ("Current liabilities", financial_data.get("current_liabilities", [])),
-        ("Goodwill", financial_data.get("goodwill", [])),
-    ]
-
-    sheet.append([
-        "Metric",
-        "Year",
-        "Value",
-        "Form",
-        "Filed",
-        "SEC accession number",
-        "Period start",
-        "Period end",
-        "SEC frame",
-    ])
+    sheet.append(["Metric", "Fiscal year", "Value", "Form", "Filed", "Accession number", "Period start", "Period end", "Frame"])
     _style_header(sheet)
-    for metric, values in fields:
+    for metric, values in result.get("financial_data", {}).items():
+        if not isinstance(values, list):
+            continue
         for item in values:
             sheet.append([
                 metric,
@@ -183,7 +150,7 @@ def _add_financial_data_sheet(workbook, result):
                 item.get("value"),
                 item.get("form"),
                 item.get("filed"),
-                item.get("accn"),
+                item.get("accn") or item.get("accession_number"),
                 item.get("start"),
                 item.get("end"),
                 item.get("frame"),
@@ -191,65 +158,36 @@ def _add_financial_data_sheet(workbook, result):
 
 
 def _add_goodwill_sheet(workbook, result):
-    sheet = workbook.create_sheet("Goodwill Analysis")
+    sheet = workbook.create_sheet("Goodwill")
     sheet.append(["Metric", "Value"])
     _style_header(sheet)
-
-    goodwill = result.get("goodwill_analysis", {})
-    if goodwill.get("goodwill_to_assets") is None:
-        sheet.append(["Status", goodwill.get("message", "Not enough data to analyze goodwill.")])
-        return
-
-    sheet.append(["Goodwill / total assets", goodwill.get("goodwill_to_assets")])
-    sheet.append(["Year-over-year goodwill change", goodwill.get("goodwill_change")])
-    sheet.append([
-        "Screening status",
-        "Review suggested" if goodwill.get("flag") else "No threshold triggered",
-    ])
-    sheet.append(["Explanation", goodwill.get("message", "")])
+    goodwill = result.get("goodwill_analysis") or {}
+    sheet.append(["Goodwill / total assets", goodwill.get("goodwill_to_assets", "N/A")])
+    sheet.append(["Year-over-year goodwill change", goodwill.get("goodwill_change", "N/A")])
+    sheet.append(["Screening status", "Review suggested" if goodwill.get("flag") else "No threshold triggered"])
+    sheet.append(["Message", goodwill.get("message", "N/A")])
 
 
 def _add_peer_sheet(workbook, result):
     sheet = workbook.create_sheet("Peer Comparison")
-    peer = result.get("peer_comparison", {})
-    sheet.append(["Metric", "Company", "Peer median", "Risk direction", "Robust z-score", "Metric risk level"])
+    sheet.append(["Metric", "Company", "Peer median", "Risk direction", "Robust z-score", "Risk level"])
     _style_header(sheet)
-
-    labels = {
-        "receivables_to_revenue": "Receivables / Revenue",
-        "dso": "DSO",
-        "accrual_ratio": "Accrual Ratio",
-        "current_ratio": "Current Ratio",
-        "ocf_conversion": "OCF Conversion",
-    }
-
+    peer = result.get("peer_comparison") or {}
     for metric, values in peer.get("metrics", {}).items():
-        direction = "Higher is riskier" if values.get("risk_direction") == "higher" else "Lower is riskier"
         sheet.append([
-            labels.get(metric, metric),
+            metric.replace("_", " ").title(),
             values.get("company_value"),
             values.get("peer_median"),
-            direction,
+            values.get("risk_direction"),
             values.get("z_score"),
             values.get("risk_level"),
         ])
 
-    sheet.append([])
-    sheet.append(["Peer count", peer.get("peer_count", 0)])
-    sheet.append(["Comparison year", peer.get("comparison_year", "N/A")])
-    sheet.append(["Peer deviation risk level", peer.get("risk_score", 0)])
-
 
 def _add_policies_sheet(workbook, result):
     sheet = workbook.create_sheet("Accounting Policies")
-    sheet.append(["Policy/topic", "Keywords or evidence"])
+    sheet.append(["Policy", "Matches"])
     _style_header(sheet)
-
     policy = result.get("policy_analysis") or {}
-    for policy_name, matches in policy.get("policy_matches", {}).items():
-        if matches:
-            sheet.append([policy_name.replace("_", " ").title(), ", ".join(matches)])
-
-    for topic, analysis in result.get("accounting_topics", {}).items():
-        for evidence in analysis.get("evidence", []):
-            sheet.append([topic, evidence])
+    for name, matches in policy.get("policy_matches", {}).items():
+        sheet.append([name.replace("_", " ").title(), ", ".join(matches)])
