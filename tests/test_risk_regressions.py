@@ -9,6 +9,15 @@ def test_free_cash_flow_handles_negative_sec_capex_sign():
     assert calculate_free_cash_flow(100, 30) == 70
 
 
+def test_tesla_2025_cash_flow_and_balance_sheet_math_matches_filing():
+    # Tesla's 2025 Form 10-K reports OCF of $14,747m and capex of $8,527m.
+    # It also reports current assets of $68,642m, current liabilities of
+    # $31,714m, total assets of $137,806m, and total liabilities of $54,941m.
+    assert calculate_free_cash_flow(14_747, -8_527) == 6_220
+    assert round(68_642 / 31_714, 4) == 2.1646
+    assert round(54_941 / 137_806, 4) == 0.3987
+
+
 def test_missing_risk_dimensions_are_not_treated_as_zero_risk():
     dimensions = {
         "revenue_quality": 20,
