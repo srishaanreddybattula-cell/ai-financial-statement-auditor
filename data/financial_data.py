@@ -186,6 +186,11 @@ def get_debt(company_facts):
     )
 
 
+def get_goodwill(company_facts):
+    """Extract annual goodwill balances from 10-K filings when reported."""
+    return get_fact(company_facts, "Goodwill")
+
+
 def get_financial_data(company_facts):
     return {
         "revenue": get_fact(
@@ -224,6 +229,10 @@ def get_financial_data(company_facts):
         "inventory": get_fact(
             company_facts,
             "InventoryNet"
+        ),
+
+        "goodwill": get_goodwill(
+            company_facts
         ),
 
         "operating_cash_flow": get_fact(
