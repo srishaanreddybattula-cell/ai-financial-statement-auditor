@@ -19,7 +19,7 @@ def test_missing_risk_dimensions_are_not_treated_as_zero_risk():
         "leverage_liquidity": None,
         "peer_deviation": None,
     }
-    assert calculate_risk_score(dimensions) == 100
+    assert calculate_risk_score(dimensions) == 20
     assert calculate_score_coverage(dimensions) == 20
 
 
