@@ -127,10 +127,10 @@ if submitted:
         provenance_rows.append({
             "Metric": label,
             "Fiscal year": item.get("year"),
-            "Form": item.get("form", "N/A"),
-            "Filed": item.get("filed", "N/A"),
-            "Accession number": item.get("accession_number", "N/A"),
-            "Period end": item.get("end", "N/A"),
+            "Form": item.get("form") or "N/A",
+            "Filed": item.get("filed") or "N/A",
+            "Accession number": item.get("accn") or "N/A",
+            "Period end": item.get("end") or "N/A",
         })
     debt_data = normalize_annual_data(result.get("financial_data", {}).get("debt", []))
     if debt_data:
@@ -138,10 +138,10 @@ if submitted:
         provenance_rows.append({
             "Metric": "Debt",
             "Fiscal year": item.get("year"),
-            "Form": ", ".join(item.get("forms", [])) or "N/A",
-            "Filed": item.get("filed", "N/A"),
-            "Accession number": ", ".join(item.get("accession_numbers", [])) or "N/A",
-            "Period end": item.get("end", "N/A"),
+            "Form": item.get("form") or "N/A",
+            "Filed": item.get("filed") or "N/A",
+            "Accession number": item.get("accn") or "N/A",
+            "Period end": item.get("end") or "N/A",
         })
     if provenance_rows:
         st.dataframe(provenance_rows, hide_index=True, width="stretch")
