@@ -26,12 +26,30 @@ def _robust_z_score(value, peer_values):
     return 0.6745 * (value - center) / mad
 
 
+def _directional_risk(z_score, direction):
+    if z_score is None:
+        return 0
+
+    risk_z = z_score if direction == "higher" else -z_score
+
+    if risk_z <= 0:
+        return 0
+    if risk_z >= 3:
+        return 100
+
+    return (risk_z / 3) * 100
+
+
 def calculate_peer_deviation(company_metrics, peer_metrics):
     """Compare selected risk-related metrics with a peer group.
 
-    The function returns a 0-100 screening risk level based on robust
-    deviations from the peer median. It does not establish that a company
-    has an accounting error or misconduct.
+    Risk direction is metric-specific: higher receivables/revenue, DSO, and
+    accrual ratio are treated as more concerning, while lower current ratio
+    and operating-cash-flow conversion are treated as more concerning.
+
+    The robust z-score remains an evidence statistic. The resulting 0-100
+    value is a screening risk level, not a conclusion about accounting error
+    or misconduct.
     """
     if not peer_metrics:
         return {
@@ -69,24 +87,13 @@ def calculate_peer_deviation(company_metrics, peer_metrics):
         if median is None:
             continue
 
-        if direction == "higher":
-            directional_z = z_score
-        else:
-            directional_z = -z_score
-
-        if directional_z is None:
-            risk_level = 0
-        elif directional_z <= 0:
-            risk_level = 0
-        elif directional_z >= 3:
-            risk_level = 100
-        else:
-            risk_level = (directional_z / 3) * 100
+        risk_level = _directional_risk(z_score, direction)
 
         metric_results[metric] = {
             "company_value": company_value,
             "peer_median": median,
             "z_score": round(z_score, 2) if z_score is not None else None,
+            "risk_direction": direction,
             "risk_level": round(risk_level, 2),
         }
         risk_components.append(risk_level)
@@ -106,8 +113,8 @@ def calculate_peer_deviation(company_metrics, peer_metrics):
         "peer_count": len(peer_metrics),
         "metrics": metric_results,
         "message": (
-            "Peer deviation measures how unusual selected risk-related metrics "
-            "are relative to the peer median. It is a screening signal, not a "
+            "Peer deviation uses metric-specific risk direction and robust "
+            "deviations from the peer median. It is a screening signal, not a "
             "conclusion about accounting quality."
         ),
     }
