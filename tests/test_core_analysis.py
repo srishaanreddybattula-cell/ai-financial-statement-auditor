@@ -238,6 +238,28 @@ def test_ifrs_financial_facts_are_supported():
                         ]
                     }
                 },
+                "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": -30,
+                                "form": "20-F",
+                                "filed": "2026-03-01",
+                                "accn": "foreign-2026",
+                                "start": "2025-01-01",
+                                "end": "2025-12-31",
+                            },
+                            {
+                                "val": -25,
+                                "form": "20-F",
+                                "filed": "2025-03-01",
+                                "accn": "foreign-2025",
+                                "start": "2024-01-01",
+                                "end": "2024-12-31",
+                            },
+                        ]
+                    }
+                },
             }
         }
     }
@@ -245,6 +267,7 @@ def test_ifrs_financial_facts_are_supported():
     assert result["revenue"][-1]["value"] == 200
     assert result["revenue"][-1]["form"] == "20-F"
     assert result["net_income"][-1]["value"] == 40
+    assert result["capital_expenditures"][-1]["value"] == -30
 
 
 def test_latest_annual_filing_supports_foreign_forms():
