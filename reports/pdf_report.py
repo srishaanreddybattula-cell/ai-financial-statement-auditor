@@ -14,6 +14,16 @@ from reportlab.platypus import (
 )
 
 
+def _format_risk_value(value):
+    """Format an optional risk value without crashing on unavailable data."""
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
 def build_pdf_report(result, company_name, ticker, cik):
     buffer = BytesIO()
 
@@ -98,7 +108,7 @@ def build_pdf_report(result, company_name, ticker, cik):
     dimensions = result.get("risk_dimensions", {})
     dimension_rows = [["Dimension", "Risk level"]]
     for name, value in dimensions.items():
-        dimension_rows.append([name.replace("_", " ").title(), f"{float(value):.2f}"])
+        dimension_rows.append([name.replace("_", " ").title(), _format_risk_value(value)])
     dimension_table = Table(dimension_rows, colWidths=[4.8 * inch, 2.0 * inch], repeatRows=1)
     dimension_table.setStyle(_table_style())
     story.append(dimension_table)
@@ -108,9 +118,9 @@ def build_pdf_report(result, company_name, ticker, cik):
     for item in result.get("score_breakdown", []):
         breakdown_rows.append([
             item["dimension"].replace("_", " ").title(),
-            f"{item['risk_level']:.2f}",
-            f"{item['weight']}%",
-            f"{item['contribution']:.2f}",
+            _format_risk_value(item.get("risk_level")),
+            f"{item.get('weight', 0)}%",
+            _format_risk_value(item.get("contribution")),
         ])
     if len(breakdown_rows) > 1:
         breakdown_table = Table(
@@ -124,8 +134,9 @@ def build_pdf_report(result, company_name, ticker, cik):
     peer = result.get("peer_comparison", {})
     story.append(Paragraph("Peer comparison", section_style))
     if peer.get("peer_count", 0):
+        peer_risk = _format_risk_value(peer.get("risk_score"))
         story.append(Paragraph(
-            f"Compared with {peer['peer_count']} selected peers using annual period {peer.get('comparison_year', 'N/A')}. Peer deviation risk level: {peer.get('risk_score', 0):.2f}/100.",
+            f"Compared with {peer['peer_count']} selected peers using annual period {peer.get('comparison_year', 'N/A')}. Peer deviation risk level: {peer_risk}/100.",
             body_style,
         ))
         peer_rows = [["Metric", "Company", "Peer median", "Risk direction", "Risk level"]]
@@ -135,7 +146,7 @@ def build_pdf_report(result, company_name, ticker, cik):
                 f"{values['company_value']:.2f}",
                 f"{values['peer_median']:.2f}",
                 "Higher is riskier" if values.get("risk_direction") == "higher" else "Lower is riskier",
-                f"{values['risk_level']:.2f}",
+                _format_risk_value(values.get("risk_level")),
             ])
         peer_table = Table(peer_rows, colWidths=[1.75 * inch, 1.1 * inch, 1.1 * inch, 1.55 * inch, 1.0 * inch], repeatRows=1)
         peer_table.setStyle(_table_style())
