@@ -19,6 +19,9 @@ LEGAL_SUFFIXES = {
     "ltd", "limited", "plc", "holdings", "holding", "group", "sa",
     "ag", "nv", "se", "spa", "sarl", "pte", "llc", "lp", "llp",
 }
+COMPOUND_LEGAL_SUFFIXES = {
+    ("n", "v"), ("p", "l", "c"), ("s", "a"), ("a", "g"),
+}
 
 
 def _normalize_query(value):
@@ -29,8 +32,18 @@ def _normalize_query(value):
 def _base_company_name(value):
     """Return a normalized name with trailing legal suffixes removed."""
     words = _normalize_query(value).split()
-    while len(words) > 1 and words[-1] in LEGAL_SUFFIXES:
-        words.pop()
+    while len(words) > 1:
+        if words[-1] in LEGAL_SUFFIXES:
+            words.pop()
+            continue
+        removed_compound = False
+        for suffix in COMPOUND_LEGAL_SUFFIXES:
+            if len(words) > len(suffix) and tuple(words[-len(suffix):]) == suffix:
+                del words[-len(suffix):]
+                removed_compound = True
+                break
+        if not removed_compound:
+            break
     return " ".join(words)
 
 
@@ -116,7 +129,10 @@ def _is_corporate_name_match(query, title):
         return False
     if title_words[:len(query_words)] != query_words:
         return False
-    return all(word in LEGAL_SUFFIXES for word in title_words[len(query_words):])
+    remaining = title_words[len(query_words):]
+    if all(word in LEGAL_SUFFIXES for word in remaining):
+        return True
+    return any(tuple(remaining) == suffix for suffix in COMPOUND_LEGAL_SUFFIXES)
 
 
 def find_company(query):
