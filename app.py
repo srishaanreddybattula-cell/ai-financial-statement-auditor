@@ -6,7 +6,7 @@ from analysis.peer_pipeline import add_peer_analysis
 from analysis.risk_score import calculate_score_breakdown
 from analysis.data_quality import assess_data_quality
 from data.sec_api import get_company_submissions
-from data.ticker_map import get_cik_from_ticker
+from data.ticker_map import get_company_from_query
 from data.xbrl import get_company_facts
 from data.normalizer import normalize_annual_data
 from reports.excel_report import build_excel_report
@@ -19,22 +19,24 @@ st.title("AI Financial Statement Auditor")
 st.caption("SEC-grounded financial reporting risk analysis — not an audit opinion or fraud detector.")
 
 with st.form("company_form"):
-    ticker_input = st.text_input("Company ticker", placeholder="AAPL")
+    company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, or AAPL")
     submitted = st.form_submit_button("Analyze company")
 
 if submitted:
-    ticker = ticker_input.upper().strip()
+    company_query = company_input.strip()
 
-    if not ticker:
-        st.warning("Enter a company ticker first.")
+    if not company_query:
+        st.warning("Enter a company name or ticker first.")
         st.stop()
 
-    with st.spinner("Retrieving SEC filings and XBRL data..."):
+    with st.spinner("Finding the company and retrieving SEC filings and XBRL data..."):
         try:
-            cik = get_cik_from_ticker(ticker)
-            if cik is None:
-                st.error(f"Could not find a company with ticker: {ticker}")
+            company = get_company_from_query(company_query)
+            if company is None:
+                st.error(f"Could not uniquely find an SEC-reporting company for: {company_query}. Try a more specific company name or its ticker.")
                 st.stop()
+            ticker = company["ticker"]
+            cik = company["cik"]
             submissions = get_company_submissions(cik)
             company_facts = get_company_facts(cik)
             result = analyze_company(cik, submissions, company_facts)
@@ -43,7 +45,7 @@ if submitted:
             st.error(f"Analysis failed: {exc}")
             st.stop()
 
-    company_name = submissions.get("name", ticker)
+    company_name = submissions.get("name", company["name"])
     st.subheader(company_name)
     st.write(f"Ticker: **{ticker}** · CIK: **{cik}**")
 
