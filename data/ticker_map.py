@@ -124,7 +124,7 @@ def _dedupe_companies(companies):
 
 
 def _is_corporate_name_match(query, title):
-    """Recognize a short name such as 'Apple' -> 'Apple Inc.'."""
+    """Recognize short names such as 'Apple' -> 'Apple Inc.'."""
     query_words = _normalize_query(query).split()
     title_words = _normalize_query(title).split()
     if not query_words or len(title_words) <= len(query_words):
@@ -133,17 +133,28 @@ def _is_corporate_name_match(query, title):
         return False
 
     normalized_query = _normalize_query(query)
-    if _base_company_name(title) == normalized_query:
+    base_title = _base_company_name(title)
+    if base_title == normalized_query:
         return True
 
+    # Permit a short, commonly used corporate name when the remaining words
+    # are a recognized legal suffix or a descriptive corporate word followed by
+    # a legal suffix. This covers names such as Toyota Motor Corporation while
+    # still rejecting unrelated issuers such as Toyota Industries Corporation.
     remaining = title_words[len(query_words):]
     if all(word in LEGAL_SUFFIXES for word in remaining):
         return True
     if any(tuple(remaining) == suffix for suffix in COMPOUND_LEGAL_SUFFIXES):
         return True
-
     if remaining and all(word in NAME_DESCRIPTORS or word in LEGAL_SUFFIXES for word in remaining):
         return True
+
+    if len(query_words) == 1 and remaining:
+        base_words = base_title.split()
+        if base_words[:1] == query_words and len(base_words) <= 2:
+            descriptive_words = set(base_words[1:])
+            if descriptive_words and descriptive_words <= {"motor", "technology", "technologies", "energy", "air", "group", "holding", "holdings"}:
+                return True
     return False
 
 
