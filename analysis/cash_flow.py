@@ -69,8 +69,8 @@ def assess_cash_flow(
     )
 
     capital_expenditures_growth = calculate_growth(
-        capital_expenditures,
-        previous_capital_expenditures
+        abs(capital_expenditures) if capital_expenditures is not None else None,
+        abs(previous_capital_expenditures) if previous_capital_expenditures is not None else None,
     )
 
     fcf_growth = calculate_growth(
