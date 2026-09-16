@@ -3,6 +3,7 @@ REQUIRED_METRICS = {
     "net_income": "Net income",
     "assets": "Assets",
     "liabilities": "Liabilities",
+    "debt": "Debt",
     "receivables": "Receivables",
     "operating_cash_flow": "Operating cash flow",
     "current_assets": "Current assets",
@@ -11,7 +12,7 @@ REQUIRED_METRICS = {
 
 
 def assess_data_quality(financial_data):
-    """Summarize both metric availability and annual history needed for screening."""
+    """Summarize metric availability and annual history used by screening."""
     available = []
     missing = []
     insufficient_history = []
