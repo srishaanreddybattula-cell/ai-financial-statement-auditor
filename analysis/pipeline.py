@@ -25,18 +25,29 @@ def _latest_two(data):
     return normalized[-1], normalized[-2]
 
 
-def find_latest_10k(submissions):
+def find_latest_10k(submissions, cik=None):
     recent = submissions.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
 
     for i, form in enumerate(forms):
         if form == "10-K":
-            return {
-                "accession_number": recent["accessionNumber"][i],
-                "primary_document": recent["primaryDocument"][i],
+            accession_number = recent["accessionNumber"][i]
+            primary_document = recent["primaryDocument"][i]
+            filing = {
+                "accession_number": accession_number,
+                "primary_document": primary_document,
                 "filing_date": recent["filingDate"][i],
                 "report_date": recent["reportDate"][i],
             }
+
+            if cik is not None:
+                clean_accession = accession_number.replace("-", "")
+                filing["sec_url"] = (
+                    f"https://www.sec.gov/Archives/edgar/data/"
+                    f"{int(str(cik).zfill(10))}/{clean_accession}/{primary_document}"
+                )
+
+            return filing
 
     return None
 
@@ -138,7 +149,7 @@ def analyze_company(cik, submissions, company_facts):
     historical_anomalies = detect_historical_growth_anomalies(revenue)
     growth_accelerations = detect_growth_acceleration(revenue)
 
-    filing = find_latest_10k(submissions)
+    filing = find_latest_10k(submissions, cik)
     policy_result = None
     topic_analysis = {}
 
