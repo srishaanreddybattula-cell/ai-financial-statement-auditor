@@ -2,6 +2,7 @@ from analysis.accruals import assess_accrual_quality
 from analysis.accounting_policies import analyze_accounting_policies
 from analysis.anomaly_detection import detect_growth_acceleration, detect_historical_growth_anomalies
 from analysis.cash_flow import assess_cash_flow
+from analysis.data_quality import assess_data_quality
 from analysis.goodwill import assess_goodwill_risk
 from analysis.risk_assessment import assess_policy_risk, assess_risk_dimensions
 from analysis.risk_score import calculate_risk_score, get_risk_category
@@ -42,6 +43,7 @@ def find_latest_10k(submissions):
 
 def analyze_company(cik, submissions, company_facts):
     financial_data = get_financial_data(company_facts)
+    data_quality = assess_data_quality(financial_data)
 
     revenue = normalize_annual_data(financial_data["revenue"])
     net_income = normalize_annual_data(financial_data["net_income"])
@@ -158,6 +160,7 @@ def analyze_company(cik, submissions, company_facts):
 
     return {
         "financial_data": financial_data,
+        "data_quality": data_quality,
         "latest_year": latest_revenue["year"],
         "revenue_growth": revenue_growth,
         "receivables_growth": receivables_growth,
