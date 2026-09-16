@@ -31,14 +31,31 @@ def build_excel_report(result, company_name, ticker, cik):
         summary.cell(row=row_number, column=1, value=label).font = header_font
         summary.cell(row=row_number, column=2, value=value)
 
-    summary["A10"] = "Interpretation"
+    source = result.get("source_filing") or {}
+    summary["A10"] = "Source filing"
     summary["A10"].font = header_font
-    summary["A11"] = (
+    source_rows = [
+        ("Form", source.get("form", "N/A")),
+        ("Filed", source.get("filed", "N/A")),
+        ("Report date", source.get("report_date", "N/A")),
+        ("Primary document", source.get("primary_document", "N/A")),
+        ("SEC source filing", source.get("url", "N/A")),
+    ]
+    for row_number, (label, value) in enumerate(source_rows, start=11):
+        summary.cell(row=row_number, column=1, value=label).font = header_font
+        cell = summary.cell(row=row_number, column=2, value=value)
+        if label == "SEC source filing" and source.get("url"):
+            cell.hyperlink = source["url"]
+            cell.style = "Hyperlink"
+
+    summary["A18"] = "Interpretation"
+    summary["A18"].font = header_font
+    summary["A19"] = (
         "This workbook is a prototype screening model for potential financial reporting risk indicators. "
         "A flagged indicator does not establish an accounting error, fraud, or material misstatement."
     )
-    summary.merge_cells("A11:D12")
-    summary["A11"].alignment = Alignment(wrap_text=True, vertical="top")
+    summary.merge_cells("A19:D20")
+    summary["A19"].alignment = Alignment(wrap_text=True, vertical="top")
 
     _add_risk_dimensions_sheet(workbook, result)
     _add_findings_sheet(workbook, result)
@@ -56,7 +73,7 @@ def build_excel_report(result, company_name, ticker, cik):
             for cell in column_cells:
                 value = "" if cell.value is None else str(cell.value)
                 max_length = max(max_length, len(value))
-            sheet.column_dimensions[column_letter].width = min(max(max_length + 2, 12), 45)
+            sheet.column_dimensions[column_letter].width = min(max(max_length + 2, 12), 60)
 
     buffer = BytesIO()
     workbook.save(buffer)
