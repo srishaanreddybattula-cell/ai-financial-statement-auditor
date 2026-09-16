@@ -5,9 +5,15 @@ def calculate_cash_flow_conversion(operating_cash_flow, net_income):
 
 
 def calculate_free_cash_flow(operating_cash_flow, capital_expenditures):
+    """Calculate FCF using the economic magnitude of capex.
+
+    SEC/XBRL cash-outflow facts may be reported as negative values. The app
+    stores the source value unchanged for provenance, so FCF must subtract the
+    absolute capex amount rather than subtracting a negative outflow.
+    """
     if operating_cash_flow is None or capital_expenditures is None:
         return None
-    return operating_cash_flow - capital_expenditures
+    return operating_cash_flow - abs(capital_expenditures)
 
 
 def calculate_fcf_conversion(free_cash_flow, net_income):
@@ -50,10 +56,7 @@ def assess_cash_flow(
         previous_capital_expenditures
     )
 
-    fcf_conversion = calculate_fcf_conversion(
-        free_cash_flow,
-        net_income
-    )
+    fcf_conversion = calculate_fcf_conversion(free_cash_flow, net_income)
 
     operating_cash_flow_growth = calculate_growth(
         operating_cash_flow,
@@ -107,10 +110,7 @@ def assess_cash_flow(
     ):
         risk_score += 20
 
-    if (
-        conversion_change is not None
-        and conversion_change <= -15
-    ):
+    if conversion_change is not None and conversion_change <= -15:
         risk_score += 15
 
     risk_score = min(risk_score, 100)
