@@ -251,6 +251,8 @@ if submitted:
         filing = result["filing"]
         st.write(f"Form 10-K · filed {filing['filing_date']} · report date {filing['report_date']}")
         st.write(f"Primary document: `{filing['primary_document']}`")
+        if filing.get("sec_url"):
+            st.link_button("Open filing on SEC.gov", filing["sec_url"])
 
     st.header("Download report")
     report_col1, report_col2 = st.columns(2)
