@@ -14,6 +14,17 @@ def _safe_number(value):
         return "N/A"
 
 
+def _annual_period(result):
+    filing = result.get("filing") or {}
+    report_date = filing.get("report_date")
+    if report_date:
+        try:
+            return int(str(report_date)[:4])
+        except (TypeError, ValueError):
+            pass
+    return result.get("data_period_year", result.get("latest_year", "N/A"))
+
+
 def build_excel_report(result, company_name, ticker, cik):
     workbook = Workbook()
     summary = workbook.active
@@ -31,9 +42,9 @@ def build_excel_report(result, company_name, ticker, cik):
         ("Company", company_name or "N/A"),
         ("Ticker", ticker or "N/A"),
         ("CIK", cik or "N/A"),
-        ("Latest annual period", result.get("latest_year", "N/A")),
+        ("Latest annual period", _annual_period(result)),
         ("Screening score", _safe_number(result.get("risk_score"))),
-        ("Prototype risk category", result.get("risk_category", "N/A")),
+        ("Prototype risk category", result.get("risk_category") or "N/A"),
     ]
 
     for row_number, (label, value) in enumerate(summary_rows, start=3):
@@ -48,7 +59,7 @@ def build_excel_report(result, company_name, ticker, cik):
         ("Filed", filing.get("filing_date", "N/A")),
         ("Report date", filing.get("report_date", "N/A")),
         ("Primary document", filing.get("primary_document", "N/A")),
-        ("SEC accession number", filing.get("accession_number", "N/A")),
+        ("SEC accession number", filing.get("accession_number", filing.get("accn", "N/A"))),
         ("SEC source filing", filing.get("sec_url", "N/A")),
     ]
     for row_number, (label, value) in enumerate(source_rows, start=11):
@@ -111,7 +122,7 @@ def _add_risk_dimensions_sheet(workbook, result):
 
     for item in result.get("score_breakdown", []):
         sheet.append([
-            item["dimension"].replace("_", " ").title(),
+            item.get("dimension", "N/A").replace("_", " ").title(),
             _safe_number(item.get("risk_level")),
             item.get("weight", "N/A"),
             _safe_number(item.get("contribution")),
@@ -181,6 +192,7 @@ def _add_peer_sheet(workbook, result):
     _style_header(sheet)
     peer = result.get("peer_comparison") or {}
     for metric, values in peer.get("metrics", {}).items():
+        values = values or {}
         sheet.append([
             metric.replace("_", " ").title(),
             _safe_number(values.get("company_value")),
