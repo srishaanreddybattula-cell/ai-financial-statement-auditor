@@ -14,6 +14,8 @@ from reports.excel_report import build_excel_report
 from reports.pdf_report import build_pdf_report
 
 
+APP_BUILD = "2026-09-17-production-fix-2"
+
 st.set_page_config(page_title="Aurevia | Financial Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 st.markdown(f"<style>{Path('theme.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 st.markdown("""
@@ -44,14 +46,25 @@ if "analysis_error" not in st.session_state:
 if "report_files" not in st.session_state:
     st.session_state.report_files = {}
 
+
+def _navigate(page_key):
+    st.session_state.nav_page = page_key
+
+
 with st.sidebar:
     st.markdown("<div class='brand'><span class='brand-mark'>◈</span><span>Aurevia</span></div>", unsafe_allow_html=True)
     st.caption("Financial intelligence, grounded in SEC data")
+    st.caption(f"Build: {APP_BUILD}")
     st.divider()
     for page_key, page_label in NAV_ITEMS:
-        if st.button(page_label, key=f"nav_{page_key}", use_container_width=True, type="primary" if st.session_state.nav_page == page_key else "secondary"):
-            st.session_state.nav_page = page_key
-            st.rerun()
+        st.button(
+            page_label,
+            key=f"nav_{page_key}",
+            use_container_width=True,
+            type="primary" if st.session_state.nav_page == page_key else "secondary",
+            on_click=_navigate,
+            args=(page_key,),
+        )
     st.markdown("<div class='sidebar-footer'><b>Smarter finance.</b><br>Deeper insights.</div>", unsafe_allow_html=True)
 
 
@@ -108,7 +121,14 @@ def render_company_header(result):
     c1, c2, c3 = st.columns(3)
     c1.metric("Financial Reporting Risk Score", f"{float(result.get('risk_score', 0)):.2f}/100")
     c2.metric("Prototype Risk Category", result.get("risk_category", "N/A"))
-    c3.metric("Latest Annual Period", result.get("latest_year", "N/A"))
+    filing = result.get("filing") or {}
+    annual_period = result.get("latest_year")
+    if filing.get("report_date"):
+        try:
+            annual_period = int(str(filing["report_date"])[:4])
+        except (TypeError, ValueError):
+            pass
+    c3.metric("Latest Annual Period", annual_period if annual_period is not None else "N/A")
     st.info("The score is a prototype screening model. A flagged indicator means the financial data or disclosures deserve further review; it does not establish an accounting error, fraud, or material misstatement.")
 
 
@@ -333,8 +353,6 @@ def render_page():
         st.markdown("<div class='eyebrow'>COMPANY ANALYSIS</div>", unsafe_allow_html=True)
         st.title("Company Analysis")
         render_search_form("company_analysis")
-        # Re-read state after the form. The submitted form may have replaced a
-        # previous result or created a new one during this same Streamlit run.
         if st.session_state.analysis_error:
             st.error(st.session_state.analysis_error)
             st.info("Enter another company above to retry.")
