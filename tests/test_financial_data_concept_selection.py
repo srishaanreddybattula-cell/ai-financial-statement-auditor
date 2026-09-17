@@ -7,7 +7,7 @@ def _fact(years):
             "USD": [
                 {
                     "form": "10-K",
-                    "start": f"{year - 1}-01-01",
+                    "start": f"{year}-01-01",
                     "end": f"{year}-12-31",
                     "filed": f"{year + 1}-02-01",
                     "val": year,
