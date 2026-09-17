@@ -1,22 +1,39 @@
 import streamlit as st
 from pathlib import Path
 
-from analysis.findings import generate_findings
-from analysis.pipeline import analyze_company
-from analysis.peer_pipeline import add_peer_analysis
-from analysis.risk_score import calculate_score_breakdown, calculate_score_coverage
 from analysis.data_quality import assess_data_quality
+from analysis.findings import generate_findings
+from analysis.peer_pipeline import add_peer_analysis
+from analysis.pipeline import analyze_company
+from analysis.risk_score import calculate_score_breakdown, calculate_score_coverage
+from data.normalizer import normalize_annual_data
 from data.sec_api import get_company_submissions
 from data.ticker_map import get_company_from_query
 from data.xbrl import get_company_facts
-from data.normalizer import normalize_annual_data
 from reports.excel_report import build_excel_report
 from reports.pdf_report import build_pdf_report
 
 
-st.set_page_config(page_title="Aurevia | Financial Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Aurevia | Financial Intelligence",
+    page_icon="◈",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 st.markdown(f"<style>{Path('theme.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+st.markdown(
+    """
+    <style>
+    @media (max-width: 900px) {
+        .main .block-container { padding-left: 1rem; padding-right: 1rem; }
+        section[data-testid="stSidebar"] { max-width: 82vw; min-width: 250px; }
+        [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 NAV_ITEMS = [
     ("home", "◈  Home"),
@@ -29,6 +46,12 @@ NAV_ITEMS = [
 
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "home"
+if "analysis_result" not in st.session_state:
+    st.session_state.analysis_result = None
+if "analysis_error" not in st.session_state:
+    st.session_state.analysis_error = None
+if "report_files" not in st.session_state:
+    st.session_state.report_files = {}
 
 with st.sidebar:
     st.markdown("<div class='brand'><span class='brand-mark'>◈</span><span>Aurevia</span></div>", unsafe_allow_html=True)
@@ -45,309 +68,362 @@ with st.sidebar:
             st.rerun()
     st.markdown("<div class='sidebar-footer'><b>Smarter finance.</b><br>Deeper insights.</div>", unsafe_allow_html=True)
 
-page_titles = dict(NAV_ITEMS)
-current_label = page_titles[st.session_state.nav_page].split("  ", 1)[-1]
 
-if st.session_state.nav_page != "home":
-    st.subheader(current_label)
-    st.caption(f"You are viewing the {current_label} section. Use the sidebar to switch sections.")
+def render_search_form(key_suffix):
+    with st.form(f"company_form_{key_suffix}"):
+        company_input = st.text_input(
+            "Company name or ticker",
+            placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL",
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button("Analyze  →", use_container_width=False)
 
-st.markdown("<div class='eyebrow'>AI FINANCIAL INTELLIGENCE</div>", unsafe_allow_html=True)
-st.title("Welcome to Aurevia")
-st.caption("Analyze a company's financials with SEC-grounded AI-powered insights.")
+    if not submitted:
+        return
 
-with st.form("company_form"):
-    company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL", label_visibility="collapsed")
-    submitted = st.form_submit_button("Analyze  →", use_container_width=False)
+    query = company_input.strip()
+    # Clear the previous company before any new request so a failed request can
+    # never leave the user looking at stale Tesla/Apple/etc. results.
+    st.session_state.analysis_result = None
+    st.session_state.analysis_company_name = None
+    st.session_state.analysis_ticker = None
+    st.session_state.analysis_cik = None
+    st.session_state.analysis_submissions = None
+    st.session_state.analysis_error = None
 
-if submitted:
-    company_query = company_input.strip()
+    if not query:
+        st.session_state.analysis_error = "Enter a company name or ticker first."
+        return
 
-    if not company_query:
-        st.warning("Enter a company name or ticker first.")
-        st.stop()
-
-    with st.spinner("Finding the company and retrieving SEC filings and XBRL data..."):
-        try:
-            company = get_company_from_query(company_query)
+    try:
+        with st.spinner("Finding the company and retrieving SEC filings and XBRL data..."):
+            company = get_company_from_query(query)
             if company is None:
-                st.error(f"Could not uniquely find an SEC-reporting company for: {company_query}. Try a more specific company name or its ticker.")
-                st.stop()
-            ticker = company["ticker"]
+                raise ValueError(
+                    f"Could not uniquely find an SEC-reporting company for: {query}. "
+                    "Try a more specific company name or ticker."
+                )
+            ticker = company.get("ticker")
             cik = company["cik"]
             submissions = get_company_submissions(cik)
             company_facts = get_company_facts(cik)
             result = analyze_company(cik, submissions, company_facts)
             result = add_peer_analysis(result, ticker)
-        except Exception as exc:
-            st.error(f"Analysis failed: {exc}")
-            st.stop()
+            result["findings"] = generate_findings(result)
+            result["score_breakdown"] = calculate_score_breakdown(result["risk_dimensions"])
 
-    company_name = submissions.get("name", company["name"])
-    st.session_state.analysis_result = result
-    st.session_state.analysis_company_name = company_name
-    st.session_state.analysis_ticker = ticker
-    st.session_state.analysis_cik = cik
-    st.session_state.analysis_submissions = submissions
-else:
-    result = st.session_state.get("analysis_result")
-    company_name = st.session_state.get("analysis_company_name")
-    ticker = st.session_state.get("analysis_ticker")
-    cik = st.session_state.get("analysis_cik")
-    submissions = st.session_state.get("analysis_submissions")
+        company_name = submissions.get("name", company.get("name", "Unknown company"))
+        st.session_state.analysis_result = result
+        st.session_state.analysis_company_name = company_name
+        st.session_state.analysis_ticker = ticker
+        st.session_state.analysis_cik = cik
+        st.session_state.analysis_submissions = submissions
+    except Exception as exc:
+        st.session_state.analysis_error = f"Analysis could not be completed: {exc}"
 
-if result is not None:
+
+def render_home():
+    st.markdown("<div class='eyebrow'>AI FINANCIAL INTELLIGENCE</div>", unsafe_allow_html=True)
+    st.title("Welcome to Aurevia")
+    st.caption("Analyze a company's financials with SEC-grounded AI-powered insights.")
+    render_search_form("home")
+
+    result = st.session_state.analysis_result
+    if st.session_state.analysis_error:
+        st.error(st.session_state.analysis_error)
+        st.info("Your previous analysis was cleared. Enter another company above to retry.")
+        return
+    if result is None:
+        st.info("Start with a company name or ticker. The app will use the latest annual SEC filing it can identify and show data coverage when individual metrics are unavailable.")
+        return
+
+    render_company_header(result)
+    st.subheader("Analysis ready")
+    st.write("Use the sidebar to inspect findings, financial statements, key metrics, peer comparison, or generate reports.")
+
+
+def render_company_header(result):
+    company_name = st.session_state.get("analysis_company_name") or "Company"
+    ticker = st.session_state.get("analysis_ticker") or "No ticker mapped"
+    cik = st.session_state.get("analysis_cik") or "N/A"
+    score = result.get("risk_score", 0)
     st.subheader(company_name)
-    ticker_display = ticker or "No ticker mapped"
-    st.write(f"Ticker: **{ticker_display}** · CIK: **{cik}**")
-
-    score_col, category_col, year_col = st.columns(3)
-    score_col.metric("Financial Reporting Risk Score", f"{result['risk_score']:.2f}/100")
-    category_col.metric("Prototype Risk Category", result["risk_category"])
-    year_col.metric("Latest Annual Period", result["latest_year"])
+    st.write(f"Ticker: **{ticker}** · CIK: **{cik}**")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Financial Reporting Risk Score", f"{float(score):.2f}/100")
+    c2.metric("Prototype Risk Category", result.get("risk_category", "N/A"))
+    c3.metric("Latest Annual Period", result.get("latest_year", "N/A"))
     st.info("The score is a prototype screening model. A flagged indicator means the financial data or disclosures deserve further review; it does not establish an accounting error, fraud, or material misstatement.")
 
-    st.subheader("Risk score overview")
-    score = max(0.0, min(100.0, float(result["risk_score"])))
-    st.progress(score / 100)
-    score_coverage = calculate_score_coverage(result["risk_dimensions"])
-    st.caption(f"Current screening score: **{score:.2f}/100** · Prototype category: **{result['risk_category']}** · Risk model coverage: **{score_coverage:.0f}%**")
-    if score_coverage < 100:
-        st.warning("Some risk dimensions do not have enough underlying data. They are excluded from the score rather than being treated as zero risk.")
 
-    findings = generate_findings(result)
-    result["findings"] = findings
-    result["score_breakdown"] = calculate_score_breakdown(result["risk_dimensions"])
-    st.session_state.analysis_result = result
+def render_company_analysis(result):
+    render_company_header(result)
+    coverage = calculate_score_coverage(result.get("risk_dimensions", {}))
+    if result.get("partial_analysis"):
+        st.warning("This is a partial analysis. Metrics that cannot be supported by the selected annual SEC filing are shown as N/A rather than stopping the analysis.")
+    st.subheader("Risk score overview")
+    st.progress(max(0.0, min(100.0, float(result.get("risk_score", 0)))) / 100)
+    st.caption(f"Risk model coverage: **{coverage:.0f}%**")
+    if coverage < 100:
+        st.warning("Some risk dimensions do not have enough underlying data. They are excluded from the score rather than treated as zero risk.")
 
     st.header("Key findings")
+    findings = result.get("findings", [])
     if findings:
         st.caption(f"{len(findings)} item(s) identified for further review based on the current screening rules.")
         for finding in findings:
-            with st.expander(f"{finding['priority']} priority — {finding['title']}"):
+            with st.expander(f"{finding.get('priority', 'N/A')} priority — {finding.get('title', 'Finding')}"):
                 st.write("**Evidence**")
-                st.write(finding["evidence"])
+                st.write(finding.get("evidence", "N/A"))
                 st.write("**Why it matters**")
-                st.write(finding["why_it_matters"])
+                st.write(finding.get("why_it_matters", "N/A"))
     else:
         st.success("No screening findings were triggered by the current rules.")
 
     st.header("Data quality & coverage")
-    data_quality = result.get("data_quality") or assess_data_quality(result.get("financial_data", {}))
-    quality_col1, quality_col2 = st.columns(2)
-    quality_col1.metric("Core metric coverage", f"{data_quality['coverage_percent']:.0f}%")
-    quality_col2.metric("Coverage status", data_quality["status"])
-    st.progress(data_quality["coverage_percent"] / 100)
-    if data_quality["missing"]:
-        st.warning("Missing core metrics: " + ", ".join(data_quality["missing"]))
-    else:
-        st.success("All core metrics required by the screening model are available.")
-    if data_quality.get("insufficient_history"):
-        st.warning("Limited annual history for: " + ", ".join(data_quality["insufficient_history"]))
-    st.caption("Coverage measures whether the core annual financial metrics needed by the screening model are available. It does not measure the accuracy or completeness of the underlying SEC filing.")
+    quality = result.get("data_quality") or assess_data_quality(result.get("financial_data", {}))
+    q1, q2 = st.columns(2)
+    q1.metric("Core metric coverage", f"{quality.get('coverage_percent', 0):.0f}%")
+    q2.metric("Coverage status", quality.get("status", "N/A"))
+    st.progress(max(0.0, min(100.0, float(quality.get("coverage_percent", 0)))) / 100)
+    if quality.get("missing"):
+        st.warning("Missing core metrics: " + ", ".join(quality["missing"]))
+    if quality.get("insufficient_history"):
+        st.warning("Limited annual history for: " + ", ".join(quality["insufficient_history"]))
+    if not quality.get("missing") and not quality.get("insufficient_history"):
+        st.success("All core metrics required by the screening model have usable annual history.")
 
-    st.header("Key financial signals")
-    debt_data = normalize_annual_data(result.get("financial_data", {}).get("debt", []))
-    liabilities_data = normalize_annual_data(result.get("financial_data", {}).get("liabilities", []))
-    latest_debt = debt_data[-1]["value"] if debt_data else None
-    latest_assets = normalize_annual_data(result.get("financial_data", {}).get("assets", []))
-    latest_assets_value = latest_assets[-1]["value"] if latest_assets else None
-    latest_liabilities = liabilities_data[-1]["value"] if liabilities_data else None
-    debt_to_assets = latest_debt / latest_assets_value if latest_debt is not None and latest_assets_value not in (None, 0) else None
-    liabilities_to_assets = latest_liabilities / latest_assets_value if latest_liabilities is not None and latest_assets_value not in (None, 0) else None
+    warnings = result.get("analysis_warnings", [])
+    if warnings:
+        st.header("Data availability notes")
+        for warning in warnings:
+            st.write(f"• {warning}")
+
+    st.header("Source filing")
+    filing = result.get("filing")
+    if filing:
+        st.write(f"Form **{filing.get('form', 'annual report')}** · filed **{filing.get('filing_date', 'N/A')}** · report date **{filing.get('report_date', 'N/A')}**")
+        st.write(f"Primary document: `{filing.get('primary_document', 'N/A')}`")
+        if filing.get("sec_url"):
+            st.link_button("Open filing on SEC.gov", filing["sec_url"])
+    else:
+        st.info("No annual source filing was found in the available SEC submission history.")
+
+
+def render_financial_statements(result):
+    render_company_header(result)
+    financial_data = result.get("financial_data", {})
+    st.header("Annual financial data")
+    rows = []
+    for metric, values in financial_data.items():
+        if not isinstance(values, list):
+            continue
+        for item in normalize_annual_data(values):
+            rows.append({
+                "Metric": metric.replace("_", " ").title(),
+                "Fiscal year": item.get("year"),
+                "Value": item.get("value"),
+                "Form": item.get("form") or "N/A",
+                "Filed": item.get("filed") or "N/A",
+                "Period end": item.get("end") or "N/A",
+            })
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+    else:
+        st.info("No annual financial facts were available.")
+
+    st.header("Financial trends")
+    revenue = normalize_annual_data(financial_data.get("revenue", []))
+    net_income = normalize_annual_data(financial_data.get("net_income", []))
+    ocf = normalize_annual_data(financial_data.get("operating_cash_flow", []))
+    revenue_by_year = {x["year"]: x["value"] for x in revenue}
+    income_by_year = {x["year"]: x["value"] for x in net_income}
+    ocf_by_year = {x["year"]: x["value"] for x in ocf}
+    years = sorted(set(revenue_by_year) & set(income_by_year) & set(ocf_by_year))[-5:]
+    if years:
+        import pandas as pd
+        trend = pd.DataFrame({
+            "Revenue ($B)": [revenue_by_year[y] / 1_000_000_000 for y in years],
+            "Net Income ($B)": [income_by_year[y] / 1_000_000_000 for y in years],
+            "Operating Cash Flow ($B)": [ocf_by_year[y] / 1_000_000_000 for y in years],
+        }, index=[str(y) for y in years])
+        st.line_chart(trend, y_label="USD billions")
+    else:
+        st.info("Not enough overlapping annual revenue, net income, and operating cash flow data to display a trend.")
+
+
+def render_key_metrics(result):
+    render_company_header(result)
+    wc = result.get("working_capital", {}) or {}
+    cf = result.get("cash_flow", {}) or {}
+    accruals = result.get("accruals", {}) or {}
+    financial_data = result.get("financial_data", {}) or {}
+
+    def value_for_year(key):
+        values = normalize_annual_data(financial_data.get(key, []))
+        target = result.get("data_period_year")
+        for item in values:
+            if item.get("year") == target:
+                return item.get("value")
+        return None
+
+    assets = value_for_year("assets")
+    debt = value_for_year("debt")
+    liabilities = value_for_year("liabilities")
+    debt_assets = debt / assets if debt is not None and assets not in (None, 0) else None
+    liabilities_assets = liabilities / assets if liabilities is not None and assets not in (None, 0) else None
 
     metrics = [
-        ("Revenue growth", result["revenue_growth"], "%"),
-        ("Receivables growth", result["receivables_growth"], "%"),
-        ("Inventory growth", result["inventory_growth"], "%"),
-        ("DSO change", result["working_capital"]["dso_change"], "%"),
-        ("Current ratio", result["working_capital"]["current_ratio"], ""),
-        ("Debt / assets", debt_to_assets, "ratio"),
-        ("Liabilities / assets", liabilities_to_assets, "ratio"),
-        ("OCF conversion", result["cash_flow"]["cash_flow_conversion"], "%"),
-        ("FCF conversion", result["cash_flow"]["fcf_conversion"], "%"),
-        ("Accrual ratio", result["accruals"]["accrual_ratio"], ""),
+        ("Revenue growth", result.get("revenue_growth"), "%"),
+        ("Receivables growth", result.get("receivables_growth"), "%"),
+        ("Inventory growth", result.get("inventory_growth"), "%"),
+        ("DSO change", wc.get("dso_change"), "%"),
+        ("Current ratio", wc.get("current_ratio"), "number"),
+        ("Debt / assets", debt_assets, "percent"),
+        ("Liabilities / assets", liabilities_assets, "percent"),
+        ("OCF conversion", cf.get("cash_flow_conversion"), "%"),
+        ("FCF conversion", cf.get("fcf_conversion"), "%"),
+        ("Accrual ratio", accruals.get("accrual_ratio"), "number"),
     ]
+    st.header("Key financial signals")
     cols = st.columns(4)
-    for index, (label, value, suffix) in enumerate(metrics):
+    for index, (label, value, fmt) in enumerate(metrics):
         if value is None:
             display = "N/A"
-        elif suffix == "%":
+        elif fmt == "%":
             display = f"{value:.2f}%"
-        elif suffix == "ratio":
+        elif fmt == "percent":
             display = f"{value:.2%}"
         else:
             display = f"{value:.2f}"
         cols[index % 4].metric(label, display)
 
-    st.header("SEC data provenance")
-    st.caption("These fields identify the SEC filing metadata retained with the annual XBRL facts used by the screening model.")
-    provenance_rows = []
-    provenance_labels = {
-        "revenue": "Revenue",
-        "net_income": "Net income",
-        "assets": "Assets",
-        "receivables": "Receivables",
-        "operating_cash_flow": "Operating cash flow",
-        "capital_expenditures": "Capital expenditures",
-        "goodwill": "Goodwill",
-    }
-    for key, label in provenance_labels.items():
-        annual_data = normalize_annual_data(result.get("financial_data", {}).get(key, []))
-        if not annual_data:
-            continue
-        item = annual_data[-1]
-        provenance_rows.append({
-            "Metric": label,
-            "Fiscal year": item.get("year"),
-            "Form": item.get("form") or "N/A",
-            "Filed": item.get("filed") or "N/A",
-            "Accession number": item.get("accn") or "N/A",
-            "Period end": item.get("end") or "N/A",
-        })
-    debt_data = normalize_annual_data(result.get("financial_data", {}).get("debt", []))
-    if debt_data:
-        item = debt_data[-1]
-        provenance_rows.append({
-            "Metric": "Debt",
-            "Fiscal year": item.get("year"),
-            "Form": item.get("form") or "N/A",
-            "Filed": item.get("filed") or "N/A",
-            "Accession number": item.get("accn") or "N/A",
-            "Period end": item.get("end") or "N/A",
-        })
-    if provenance_rows:
-        st.dataframe(provenance_rows, hide_index=True, width="stretch")
-    else:
-        st.info("No SEC provenance metadata was available for the extracted annual facts.")
-
-    st.header("Goodwill analysis")
-    goodwill = result.get("goodwill_analysis", {})
-    goodwill_col1, goodwill_col2, goodwill_col3 = st.columns(3)
-    goodwill_to_assets = goodwill.get("goodwill_to_assets")
-    goodwill_change = goodwill.get("goodwill_change")
-    goodwill_flag = goodwill.get("flag", False)
-    goodwill_col1.metric("Goodwill / total assets", f"{goodwill_to_assets:.2f}%" if goodwill_to_assets is not None else "N/A")
-    goodwill_col2.metric("Year-over-year goodwill change", f"{goodwill_change:.2f}%" if goodwill_change is not None else "N/A")
-    goodwill_col3.metric("Screening status", "Review indicated" if goodwill_flag else "No threshold triggered")
-    st.caption("The goodwill screen is a prototype rule for impairment and acquisition-accounting review. A large goodwill balance or decline does not by itself establish an impairment or accounting error.")
-    st.write(goodwill.get("message", "Not enough data to analyze goodwill."))
-
-    st.header("Financial trends")
-    financial_data = result["financial_data"]
-    revenue_data = normalize_annual_data(financial_data["revenue"])
-    net_income_data = normalize_annual_data(financial_data["net_income"])
-    operating_cash_flow_data = normalize_annual_data(financial_data["operating_cash_flow"])
-    trend_years = sorted(set(item["year"] for item in revenue_data) & set(item["year"] for item in net_income_data) & set(item["year"] for item in operating_cash_flow_data))[-5:]
-    trend_rows = []
-    for year in trend_years:
-        revenue_item = next((item for item in revenue_data if item["year"] == year), None)
-        net_income_item = next((item for item in net_income_data if item["year"] == year), None)
-        ocf_item = next((item for item in operating_cash_flow_data if item["year"] == year), None)
-        if revenue_item and net_income_item and ocf_item:
-            trend_rows.append({"Year": str(year), "Revenue ($B)": revenue_item["value"] / 1_000_000_000, "Net Income ($B)": net_income_item["value"] / 1_000_000_000, "Operating Cash Flow ($B)": ocf_item["value"] / 1_000_000_000})
-    if trend_rows:
-        import pandas as pd
-        trend_df = pd.DataFrame(trend_rows).set_index("Year")
-        st.line_chart(trend_df, y_label="USD billions")
-    else:
-        st.warning("Not enough annual data was available to display financial trends.")
-
-    st.header("Historical anomaly review")
-    historical_anomalies = result.get("historical_anomalies", [])
-    growth_accelerations = result.get("growth_accelerations", [])
-    if historical_anomalies:
-        st.warning(f"{len(historical_anomalies)} historical revenue-growth anomaly/anomalies were identified for further review.")
-        for anomaly in historical_anomalies:
-            with st.expander(f"{anomaly['year']} — unusual revenue growth"):
-                st.write(f"**Revenue growth:** {anomaly['growth']:.2f}%")
-                st.write(f"**Historical z-score:** {anomaly['z_score']:.2f}")
-                st.write(anomaly["message"])
-    else:
-        st.success("No historical revenue-growth anomalies were identified by the current model.")
-    if growth_accelerations:
-        st.write("**Large changes in annual growth rate**")
-        for acceleration in growth_accelerations:
-            st.write(f"- {acceleration['year']}: growth changed by {acceleration['growth_change']:.2f} percentage points ({acceleration['prior_growth']:.2f}% → {acceleration['growth']:.2f}%).")
-    else:
-        st.caption("No large year-over-year changes in revenue growth were identified by the current threshold.")
-
     st.header("Risk dimensions")
-    risk_dimensions = result["risk_dimensions"]
-    risk_rows = [(name.replace("_", " ").title(), "N/A" if value is None else value) for name, value in risk_dimensions.items()]
-    st.dataframe(risk_rows, column_config={"0": "Dimension", "1": "Risk level"}, hide_index=True, width="stretch")
+    dimensions = result.get("risk_dimensions", {})
+    dimension_rows = [{"Dimension": name.replace("_", " ").title(), "Risk level": "N/A" if value is None else value} for name, value in dimensions.items()]
+    st.dataframe(dimension_rows, hide_index=True, width="stretch")
     st.subheader("How the risk score is calculated")
-    st.caption("Each available dimension is capped at 100 and weighted using the model weights. When a dimension is unavailable, its weight is excluded from the denominator instead of being treated as zero risk.")
-    breakdown_rows = []
-    for item in result["score_breakdown"]:
-        breakdown_rows.append({
-            "Dimension": item["dimension"].replace("_", " ").title(),
-            "Risk level": item["risk_level"],
-            "Model weight": f"{item['weight']}%",
-            "Normalized weight": f"{item['normalized_weight']:.2f}%",
-            "Score contribution": item["contribution"],
-            "Data available": "Yes" if item["available"] else "No",
+    st.caption("Available dimensions are capped at 100 and weighted by the prototype model. Unavailable dimensions are excluded from the denominator.")
+    breakdown = []
+    for item in result.get("score_breakdown", []):
+        breakdown.append({
+            "Dimension": item.get("dimension", "N/A").replace("_", " ").title(),
+            "Risk level": "N/A" if item.get("risk_level") is None else item.get("risk_level"),
+            "Model weight": f"{item.get('weight', 0)}%",
+            "Normalized weight": f"{item.get('normalized_weight', 0):.2f}%",
+            "Score contribution": "N/A" if item.get("contribution") is None else item.get("contribution"),
+            "Data available": "Yes" if item.get("available") else "No",
         })
-    st.dataframe(breakdown_rows, hide_index=True, width="stretch", column_config={"Risk level": st.column_config.NumberColumn(format="%.0f"), "Score contribution": st.column_config.NumberColumn(format="%.2f")})
-    st.metric("Total screening score", f"{result['risk_score']:.2f}/100")
-    st.metric("Risk model coverage", f"{score_coverage:.0f}%")
+    st.dataframe(breakdown, hide_index=True, width="stretch")
 
+
+def render_compare(result):
+    render_company_header(result)
+    peer = result.get("peer_comparison", {}) or {}
     st.header("Peer comparison")
-    peer_comparison = result.get("peer_comparison", {})
-    peer_count = peer_comparison.get("peer_count", 0)
-    comparison_year = peer_comparison.get("comparison_year")
-    if peer_count == 0:
-        st.info(peer_comparison.get("message", "No peer comparison was available."))
-    else:
-        st.caption(f"Compared with {peer_count} selected peers using the same annual period: {comparison_year}. Peer deviation is a screening signal based on differences from the peer median." if comparison_year else f"Compared with {peer_count} selected peers. Peer deviation is a screening signal based on differences from the peer median.")
-        peer_tickers = [peer.get("ticker") for peer in peer_comparison.get("peers", []) if peer.get("ticker")]
-        if peer_tickers:
-            st.write(f"**Peers:** {', '.join(peer_tickers)}")
-        metric_labels = {"receivables_to_revenue": "Receivables / Revenue", "dso": "DSO", "accrual_ratio": "Accrual Ratio", "current_ratio": "Current Ratio", "ocf_conversion": "OCF Conversion"}
-        risk_direction_labels = {"higher": "Higher is riskier", "lower": "Lower is riskier"}
-        peer_rows = [{"Metric": metric_labels.get(metric, metric), "Company": values["company_value"], "Peer median": values["peer_median"], "Risk direction": risk_direction_labels.get(values.get("risk_direction"), "Not specified"), "Robust z-score": values["z_score"], "Metric risk level": values["risk_level"]} for metric, values in peer_comparison.get("metrics", {}).items()]
-        if peer_rows:
-            st.dataframe(peer_rows, hide_index=True, width="stretch", column_config={"Company": st.column_config.NumberColumn(format="%.2f"), "Peer median": st.column_config.NumberColumn(format="%.2f"), "Robust z-score": st.column_config.NumberColumn(format="%.2f"), "Metric risk level": st.column_config.NumberColumn(format="%.0f")})
-        st.metric("Peer deviation risk level", f"{peer_comparison['risk_score']:.2f}/100")
-        st.caption(peer_comparison.get("message", ""))
+    if not peer.get("peer_count"):
+        st.info(peer.get("message", "No peer comparison was available."))
+        return
+    st.caption(f"Compared with {peer.get('peer_count')} selected peers using annual period {peer.get('comparison_year', 'N/A')}.")
+    tickers = [p.get("ticker") for p in peer.get("peers", []) if p.get("ticker")]
+    if tickers:
+        st.write("**Peers:** " + ", ".join(tickers))
+    labels = {
+        "receivables_to_revenue": "Receivables / Revenue",
+        "dso": "DSO",
+        "accrual_ratio": "Accrual Ratio",
+        "current_ratio": "Current Ratio",
+        "ocf_conversion": "OCF Conversion",
+    }
+    rows = []
+    for metric, values in peer.get("metrics", {}).items():
+        rows.append({
+            "Metric": labels.get(metric, metric),
+            "Company": values.get("company_value", "N/A"),
+            "Peer median": values.get("peer_median", "N/A"),
+            "Risk direction": "Higher is riskier" if values.get("risk_direction") == "higher" else "Lower is riskier" if values.get("risk_direction") == "lower" else "N/A",
+            "Robust z-score": values.get("z_score", "N/A"),
+            "Metric risk level": values.get("risk_level", "N/A"),
+        })
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+    st.metric("Peer deviation risk level", f"{float(peer.get('risk_score', 0)):.2f}/100")
+    st.caption(peer.get("message", ""))
 
-    st.header("Accounting policy review")
-    policy = result.get("policy_analysis")
-    if policy is None:
-        st.write("No latest annual policy section was available.")
-    else:
-        st.write("Policy keyword matches are displayed as evidence for review. Normal accounting disclosures are not automatically treated as misconduct.")
-        for policy_name, matches in policy["policy_matches"].items():
-            if matches:
-                st.write(f"**{policy_name.replace('_', ' ').title()}:** {', '.join(matches)}")
-        for topic, analysis in result["accounting_topics"].items():
-            if analysis["evidence"]:
-                with st.expander(topic):
-                    st.write("Judgment:", analysis["judgment"])
-                    st.write("Uncertainty:", analysis["uncertainty"])
-                    st.write("Potential material impact:", analysis["material_impact"])
-                    for evidence in analysis["evidence"]:
-                        st.write(f"- {evidence}")
 
-    if result.get("filing"):
-        st.header("Source filing")
-        filing = result["filing"]
-        st.write(f"Form {filing.get('form', 'annual report')} · filed {filing['filing_date']} · report date {filing['report_date']}")
-        st.write(f"Primary document: `{filing['primary_document']}`")
-        if filing.get("sec_url"):
-            st.link_button("Open filing on SEC.gov", filing["sec_url"])
+def render_saved_reports(result):
+    render_company_header(result)
+    st.header("Generate reports")
+    st.caption("Reports are generated only after you explicitly request them. Normal dashboard rendering never builds a PDF or Excel workbook.")
+    ticker = st.session_state.get("analysis_ticker") or st.session_state.get("analysis_cik") or "company"
+    company_name = st.session_state.get("analysis_company_name") or "Company"
+    cik = st.session_state.get("analysis_cik")
+    report_key = str(ticker)
 
-    st.header("Download report")
-    report_col1, report_col2 = st.columns(2)
-    with report_col1:
-        pdf_bytes = build_pdf_report(result, company_name, ticker, cik)
-        st.download_button("Download PDF report", data=pdf_bytes, file_name=f"{ticker or cik}_financial_reporting_risk_report.pdf", mime="application/pdf")
-    with report_col2:
-        excel_bytes = build_excel_report(result, company_name, ticker, cik)
-        st.download_button("Download Excel report", data=excel_bytes, file_name=f"{ticker or cik}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Generate PDF report", key="generate_pdf", use_container_width=True):
+            try:
+                st.session_state.report_files.setdefault(report_key, {})["pdf"] = build_pdf_report(result, company_name, ticker, cik)
+                st.success("PDF report generated successfully.")
+            except Exception as exc:
+                st.error(f"PDF report could not be generated: {exc}")
+    with c2:
+        if st.button("Generate Excel report", key="generate_excel", use_container_width=True):
+            try:
+                st.session_state.report_files.setdefault(report_key, {})["excel"] = build_excel_report(result, company_name, ticker, cik)
+                st.success("Excel report generated successfully.")
+            except Exception as exc:
+                st.error(f"Excel report could not be generated: {exc}")
 
-elif st.session_state.nav_page != "home":
-    st.info("Run a company analysis from the Home section to populate this area. Your analysis will stay available while you switch between sidebar sections.")
+    files = st.session_state.report_files.get(report_key, {})
+    if files.get("pdf"):
+        st.download_button("Download PDF report", data=files["pdf"], file_name=f"{ticker}_financial_reporting_risk_report.pdf", mime="application/pdf", key="download_pdf")
+    if files.get("excel"):
+        st.download_button("Download Excel report", data=files["excel"], file_name=f"{ticker}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_excel")
 
+    if not files:
+        st.info("No reports have been generated for this analysis yet.")
+
+
+def render_page():
+    page = st.session_state.nav_page
+    result = st.session_state.analysis_result
+
+    if page == "home":
+        render_home()
+        return
+
+    if page == "company_analysis":
+        st.markdown("<div class='eyebrow'>COMPANY ANALYSIS</div>", unsafe_allow_html=True)
+        st.title("Company Analysis")
+        render_search_form("company_analysis")
+    elif result is None:
+        st.title(dict(NAV_ITEMS)[page].split("  ", 1)[-1])
+        st.info("Run a company analysis from Home or Company Analysis first. The result will remain available while you switch sections.")
+        return
+
+    if page == "company_analysis":
+        result = st.session_state.analysis_result
+        if st.session_state.analysis_error:
+            st.error(st.session_state.analysis_error)
+            st.info("Enter another company above to retry.")
+            return
+        render_company_analysis(result)
+    elif page == "financial_statements":
+        st.title("Financial Statements")
+        render_financial_statements(result)
+    elif page == "key_metrics":
+        st.title("Key Metrics")
+        render_key_metrics(result)
+    elif page == "compare_companies":
+        st.title("Compare Companies")
+        render_compare(result)
+    elif page == "saved_reports":
+        st.title("Saved Reports")
+        render_saved_reports(result)
+
+
+render_page()
 st.divider()
 st.caption("Aurevia is a prototype for SEC-grounded financial reporting risk screening. Always review the underlying SEC filing and consult a qualified professional for accounting or investment decisions.")
