@@ -124,3 +124,7 @@ GitHub Actions also runs Python compilation and the full test suite on pushes to
 - Users should review the underlying SEC filing before drawing accounting conclusions.
 
 <!-- Automated regression fixture updated with the annual-period selection fix. -->
+
+## Production deployment marker
+
+The main branch contains the current annual-filing, foreign-issuer, partial-analysis, report-generation, navigation, stale-state, and responsive-layout fixes. This marker commit is intentionally used to trigger the connected Streamlit deployment to pick up the current main-branch code.
