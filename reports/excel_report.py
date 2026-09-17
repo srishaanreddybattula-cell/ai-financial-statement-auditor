@@ -5,6 +5,15 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 
+def _safe_number(value):
+    if value is None:
+        return "N/A"
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return "N/A"
+
+
 def build_excel_report(result, company_name, ticker, cik):
     workbook = Workbook()
     summary = workbook.active
@@ -19,11 +28,11 @@ def build_excel_report(result, company_name, ticker, cik):
     summary.merge_cells("A1:D1")
 
     summary_rows = [
-        ("Company", company_name),
-        ("Ticker", ticker),
-        ("CIK", cik),
+        ("Company", company_name or "N/A"),
+        ("Ticker", ticker or "N/A"),
+        ("CIK", cik or "N/A"),
         ("Latest annual period", result.get("latest_year", "N/A")),
-        ("Screening score", result.get("risk_score", 0)),
+        ("Screening score", _safe_number(result.get("risk_score"))),
         ("Prototype risk category", result.get("risk_category", "N/A")),
     ]
 
@@ -35,7 +44,7 @@ def build_excel_report(result, company_name, ticker, cik):
     summary["A10"] = "Source filing"
     summary["A10"].font = header_font
     source_rows = [
-        ("Form", filing.get("form", "N/A") if filing else "N/A"),
+        ("Form", filing.get("form", "N/A")),
         ("Filed", filing.get("filing_date", "N/A")),
         ("Report date", filing.get("report_date", "N/A")),
         ("Primary document", filing.get("primary_document", "N/A")),
@@ -53,7 +62,8 @@ def build_excel_report(result, company_name, ticker, cik):
     summary["A18"].font = header_font
     summary["A19"] = (
         "This workbook is a prototype screening model for potential financial reporting risk indicators. "
-        "A flagged indicator does not establish an accounting error, fraud, or material misstatement."
+        "A flagged indicator does not establish an accounting error, fraud, or material misstatement. "
+        "Unavailable data is shown as N/A and excluded from the score where applicable."
     )
     summary.merge_cells("A19:D20")
     summary["A19"].alignment = Alignment(wrap_text=True, vertical="top")
@@ -70,10 +80,7 @@ def build_excel_report(result, company_name, ticker, cik):
         sheet.freeze_panes = "A2"
         for column_cells in sheet.columns:
             column_letter = get_column_letter(column_cells[0].column)
-            max_length = 0
-            for cell in column_cells:
-                value = "" if cell.value is None else str(cell.value)
-                max_length = max(max_length, len(value))
+            max_length = max((len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells), default=0)
             sheet.column_dimensions[column_letter].width = min(max(max_length + 2, 12), 60)
 
     buffer = BytesIO()
@@ -93,11 +100,11 @@ def _add_risk_dimensions_sheet(workbook, result):
     sheet.append(["Dimension", "Risk level"])
     _style_header(sheet)
     for name, value in result.get("risk_dimensions", {}).items():
-        sheet.append([name.replace("_", " ").title(), value])
+        sheet.append([name.replace("_", " ").title(), _safe_number(value)])
 
     sheet.append([])
     sheet.append(["Score breakdown"])
-    sheet.append(["Dimension", "Risk level", "Weight", "Contribution"])
+    sheet.append(["Dimension", "Risk level", "Weight", "Contribution", "Data available"])
     for cell in sheet[sheet.max_row]:
         cell.fill = PatternFill("solid", fgColor="E9EEF5")
         cell.font = Font(bold=True)
@@ -105,9 +112,10 @@ def _add_risk_dimensions_sheet(workbook, result):
     for item in result.get("score_breakdown", []):
         sheet.append([
             item["dimension"].replace("_", " ").title(),
-            item["risk_level"],
-            item["weight"],
-            item["contribution"],
+            _safe_number(item.get("risk_level")),
+            item.get("weight", "N/A"),
+            _safe_number(item.get("contribution")),
+            "Yes" if item.get("available") else "No",
         ])
 
 
@@ -115,8 +123,7 @@ def _add_findings_sheet(workbook, result):
     sheet = workbook.create_sheet("Key Findings")
     sheet.append(["Priority", "Finding", "Evidence", "Why it matters"])
     _style_header(sheet)
-    findings = result.get("findings", [])
-    for finding in findings:
+    for finding in result.get("findings", []):
         sheet.append([
             finding.get("priority", "N/A"),
             finding.get("title", "N/A"),
@@ -130,7 +137,7 @@ def _add_data_quality_sheet(workbook, result):
     sheet.append(["Metric", "Value"])
     _style_header(sheet)
     quality = result.get("data_quality") or {}
-    sheet.append(["Coverage percent", quality.get("coverage_percent", "N/A")])
+    sheet.append(["Coverage percent", _safe_number(quality.get("coverage_percent"))])
     sheet.append(["Status", quality.get("status", "N/A")])
     sheet.append(["Missing core metrics", ", ".join(quality.get("missing", [])) or "None"])
     sheet.append(["Insufficient-history metrics", ", ".join(quality.get("insufficient_history", [])) or "None"])
@@ -147,13 +154,13 @@ def _add_financial_data_sheet(workbook, result):
             sheet.append([
                 metric,
                 item.get("year"),
-                item.get("value"),
-                item.get("form"),
-                item.get("filed"),
-                item.get("accn") or item.get("accession_number"),
-                item.get("start"),
-                item.get("end"),
-                item.get("frame"),
+                _safe_number(item.get("value")),
+                item.get("form") or "N/A",
+                item.get("filed") or "N/A",
+                item.get("accn") or item.get("accession_number") or "N/A",
+                item.get("start") or "N/A",
+                item.get("end") or "N/A",
+                item.get("frame") or "N/A",
             ])
 
 
@@ -162,8 +169,8 @@ def _add_goodwill_sheet(workbook, result):
     sheet.append(["Metric", "Value"])
     _style_header(sheet)
     goodwill = result.get("goodwill_analysis") or {}
-    sheet.append(["Goodwill / total assets", goodwill.get("goodwill_to_assets", "N/A")])
-    sheet.append(["Year-over-year goodwill change", goodwill.get("goodwill_change", "N/A")])
+    sheet.append(["Goodwill / total assets", _safe_number(goodwill.get("goodwill_to_assets"))])
+    sheet.append(["Year-over-year goodwill change", _safe_number(goodwill.get("goodwill_change"))])
     sheet.append(["Screening status", "Review suggested" if goodwill.get("flag") else "No threshold triggered"])
     sheet.append(["Message", goodwill.get("message", "N/A")])
 
@@ -176,11 +183,11 @@ def _add_peer_sheet(workbook, result):
     for metric, values in peer.get("metrics", {}).items():
         sheet.append([
             metric.replace("_", " ").title(),
-            values.get("company_value"),
-            values.get("peer_median"),
-            values.get("risk_direction"),
-            values.get("z_score"),
-            values.get("risk_level"),
+            _safe_number(values.get("company_value")),
+            _safe_number(values.get("peer_median")),
+            values.get("risk_direction") or "N/A",
+            _safe_number(values.get("z_score")),
+            _safe_number(values.get("risk_level")),
         ])
 
 
