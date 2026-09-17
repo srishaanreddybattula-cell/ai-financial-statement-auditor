@@ -29,3 +29,5 @@ def test_sidebar_navigation_controls_are_interactive():
     company_button.click().run()
 
     assert app.session_state["nav_page"] == "company_analysis"
+    assert app.title[0].value == "Company Analysis"
+    assert any(text.value == "Enter a company name or ticker above to begin." for text in app.info)
