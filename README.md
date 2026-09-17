@@ -122,3 +122,5 @@ GitHub Actions also runs Python compilation and the full test suite on pushes to
 - Peer comparisons are limited to configured peer groups and comparable annual data.
 - Historical or missing facts are not automatically evidence of a reporting problem.
 - Users should review the underlying SEC filing before drawing accounting conclusions.
+
+<!-- Automated regression fixture updated with the annual-period selection fix. -->
