@@ -1,4 +1,4 @@
-/* Aurevia dark dashboard theme */
+/* Aurevia dark dashboard theme — production redeploy 2026-09-17 */
 .stApp { background: radial-gradient(circle at 82% 8%, rgba(42, 80, 180, .18), transparent 28%), radial-gradient(circle at 12% 45%, rgba(25, 211, 162, .07), transparent 24%), linear-gradient(135deg, #030916 0%, #061225 55%, #020711 100%); color: #edf4ff; }
 .main .block-container { max-width: 1450px; padding-top: 2.2rem; padding-bottom: 3rem; }
 section[data-testid="stSidebar"] { background: linear-gradient(180deg, #061124 0%, #030a16 100%); border-right: 1px solid rgba(80,140,255,.22); }
