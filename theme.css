@@ -20,3 +20,18 @@ div[data-testid="stAlert"] { border-radius:14px; }
 .stProgress > div > div > div > div { background:linear-gradient(90deg,#18d6a0,#27c8ff,#6b5cff); }
 hr { border-color:rgba(70,130,240,.18); }
 h1, h2, h3 { letter-spacing:-.025em; }
+
+@media (max-width: 900px) {
+    .main .block-container { max-width: 100%; padding-left: 1rem; padding-right: 1rem; }
+    section[data-testid="stSidebar"] { width: min(82vw, 300px); min-width: 250px; }
+    [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: .75rem; }
+    [data-testid="column"] { min-width: min(100%, 280px); }
+}
+
+@media (max-width: 600px) {
+    .main .block-container { padding-top: 1rem; padding-bottom: 2rem; }
+    section[data-testid="stSidebar"] { width: 85vw; min-width: 0; }
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.35rem; }
+    [data-testid="stMetric"] { padding: 10px; }
+}
