@@ -14,26 +14,17 @@ from reports.excel_report import build_excel_report
 from reports.pdf_report import build_pdf_report
 
 
-st.set_page_config(
-    page_title="Aurevia | Financial Intelligence",
-    page_icon="◈",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
+st.set_page_config(page_title="Aurevia | Financial Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 st.markdown(f"<style>{Path('theme.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-st.markdown(
-    """
-    <style>
-    @media (max-width: 900px) {
-        .main .block-container { padding-left: 1rem; padding-right: 1rem; }
-        section[data-testid="stSidebar"] { max-width: 82vw; min-width: 250px; }
-        [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+@media (max-width: 900px) {
+    .main .block-container { padding-left: 1rem; padding-right: 1rem; }
+    section[data-testid="stSidebar"] { max-width: 82vw; min-width: 250px; }
+    [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+}
+</style>
+""", unsafe_allow_html=True)
 
 NAV_ITEMS = [
     ("home", "◈  Home"),
@@ -58,12 +49,7 @@ with st.sidebar:
     st.caption("Financial intelligence, grounded in SEC data")
     st.divider()
     for page_key, page_label in NAV_ITEMS:
-        if st.button(
-            page_label,
-            key=f"nav_{page_key}",
-            use_container_width=True,
-            type="primary" if st.session_state.nav_page == page_key else "secondary",
-        ):
+        if st.button(page_label, key=f"nav_{page_key}", use_container_width=True, type="primary" if st.session_state.nav_page == page_key else "secondary"):
             st.session_state.nav_page = page_key
             st.rerun()
     st.markdown("<div class='sidebar-footer'><b>Smarter finance.</b><br>Deeper insights.</div>", unsafe_allow_html=True)
@@ -71,25 +57,20 @@ with st.sidebar:
 
 def render_search_form(key_suffix):
     with st.form(f"company_form_{key_suffix}"):
-        company_input = st.text_input(
-            "Company name or ticker",
-            placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL",
-            label_visibility="collapsed",
-        )
+        company_input = st.text_input("Company name or ticker", placeholder="Apple, Microsoft, NVIDIA, Tesla, ASML, Alibaba, or AAPL", label_visibility="collapsed")
         submitted = st.form_submit_button("Analyze  →", use_container_width=False)
 
     if not submitted:
         return
 
     query = company_input.strip()
-    # Clear the previous company before any new request so a failed request can
-    # never leave the user looking at stale Tesla/Apple/etc. results.
     st.session_state.analysis_result = None
     st.session_state.analysis_company_name = None
     st.session_state.analysis_ticker = None
     st.session_state.analysis_cik = None
     st.session_state.analysis_submissions = None
     st.session_state.analysis_error = None
+    st.session_state.report_files = {}
 
     if not query:
         st.session_state.analysis_error = "Enter a company name or ticker first."
@@ -99,10 +80,7 @@ def render_search_form(key_suffix):
         with st.spinner("Finding the company and retrieving SEC filings and XBRL data..."):
             company = get_company_from_query(query)
             if company is None:
-                raise ValueError(
-                    f"Could not uniquely find an SEC-reporting company for: {query}. "
-                    "Try a more specific company name or ticker."
-                )
+                raise ValueError(f"Could not uniquely find an SEC-reporting company for: {query}. Try a more specific company name or ticker.")
             ticker = company.get("ticker")
             cik = company["cik"]
             submissions = get_company_submissions(cik)
@@ -112,9 +90,8 @@ def render_search_form(key_suffix):
             result["findings"] = generate_findings(result)
             result["score_breakdown"] = calculate_score_breakdown(result["risk_dimensions"])
 
-        company_name = submissions.get("name", company.get("name", "Unknown company"))
         st.session_state.analysis_result = result
-        st.session_state.analysis_company_name = company_name
+        st.session_state.analysis_company_name = submissions.get("name", company.get("name", "Unknown company"))
         st.session_state.analysis_ticker = ticker
         st.session_state.analysis_cik = cik
         st.session_state.analysis_submissions = submissions
@@ -122,38 +99,34 @@ def render_search_form(key_suffix):
         st.session_state.analysis_error = f"Analysis could not be completed: {exc}"
 
 
+def render_company_header(result):
+    company_name = st.session_state.get("analysis_company_name") or "Company"
+    ticker = st.session_state.get("analysis_ticker") or "No ticker mapped"
+    cik = st.session_state.get("analysis_cik") or "N/A"
+    st.subheader(company_name)
+    st.write(f"Ticker: **{ticker}** · CIK: **{cik}**")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Financial Reporting Risk Score", f"{float(result.get('risk_score', 0)):.2f}/100")
+    c2.metric("Prototype Risk Category", result.get("risk_category", "N/A"))
+    c3.metric("Latest Annual Period", result.get("latest_year", "N/A"))
+    st.info("The score is a prototype screening model. A flagged indicator means the financial data or disclosures deserve further review; it does not establish an accounting error, fraud, or material misstatement.")
+
+
 def render_home():
     st.markdown("<div class='eyebrow'>AI FINANCIAL INTELLIGENCE</div>", unsafe_allow_html=True)
     st.title("Welcome to Aurevia")
     st.caption("Analyze a company's financials with SEC-grounded AI-powered insights.")
     render_search_form("home")
-
     result = st.session_state.analysis_result
     if st.session_state.analysis_error:
         st.error(st.session_state.analysis_error)
         st.info("Your previous analysis was cleared. Enter another company above to retry.")
-        return
-    if result is None:
-        st.info("Start with a company name or ticker. The app will use the latest annual SEC filing it can identify and show data coverage when individual metrics are unavailable.")
-        return
-
-    render_company_header(result)
-    st.subheader("Analysis ready")
-    st.write("Use the sidebar to inspect findings, financial statements, key metrics, peer comparison, or generate reports.")
-
-
-def render_company_header(result):
-    company_name = st.session_state.get("analysis_company_name") or "Company"
-    ticker = st.session_state.get("analysis_ticker") or "No ticker mapped"
-    cik = st.session_state.get("analysis_cik") or "N/A"
-    score = result.get("risk_score", 0)
-    st.subheader(company_name)
-    st.write(f"Ticker: **{ticker}** · CIK: **{cik}**")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Financial Reporting Risk Score", f"{float(score):.2f}/100")
-    c2.metric("Prototype Risk Category", result.get("risk_category", "N/A"))
-    c3.metric("Latest Annual Period", result.get("latest_year", "N/A"))
-    st.info("The score is a prototype screening model. A flagged indicator means the financial data or disclosures deserve further review; it does not establish an accounting error, fraud, or material misstatement.")
+    elif result is None:
+        st.info("Start with a company name or ticker. The app uses the latest annual SEC filing it can identify and shows data coverage when individual metrics are unavailable.")
+    else:
+        render_company_header(result)
+        st.subheader("Analysis ready")
+        st.write("Use the sidebar to inspect findings, financial statements, key metrics, peer comparison, or generate reports.")
 
 
 def render_company_analysis(result):
@@ -170,7 +143,6 @@ def render_company_analysis(result):
     st.header("Key findings")
     findings = result.get("findings", [])
     if findings:
-        st.caption(f"{len(findings)} item(s) identified for further review based on the current screening rules.")
         for finding in findings:
             with st.expander(f"{finding.get('priority', 'N/A')} priority — {finding.get('title', 'Finding')}"):
                 st.write("**Evidence**")
@@ -219,14 +191,7 @@ def render_financial_statements(result):
         if not isinstance(values, list):
             continue
         for item in normalize_annual_data(values):
-            rows.append({
-                "Metric": metric.replace("_", " ").title(),
-                "Fiscal year": item.get("year"),
-                "Value": item.get("value"),
-                "Form": item.get("form") or "N/A",
-                "Filed": item.get("filed") or "N/A",
-                "Period end": item.get("end") or "N/A",
-            })
+            rows.append({"Metric": metric.replace("_", " ").title(), "Fiscal year": item.get("year"), "Value": item.get("value"), "Form": item.get("form") or "N/A", "Filed": item.get("filed") or "N/A", "Period end": item.get("end") or "N/A"})
     if rows:
         st.dataframe(rows, hide_index=True, width="stretch")
     else:
@@ -242,11 +207,7 @@ def render_financial_statements(result):
     years = sorted(set(revenue_by_year) & set(income_by_year) & set(ocf_by_year))[-5:]
     if years:
         import pandas as pd
-        trend = pd.DataFrame({
-            "Revenue ($B)": [revenue_by_year[y] / 1_000_000_000 for y in years],
-            "Net Income ($B)": [income_by_year[y] / 1_000_000_000 for y in years],
-            "Operating Cash Flow ($B)": [ocf_by_year[y] / 1_000_000_000 for y in years],
-        }, index=[str(y) for y in years])
+        trend = pd.DataFrame({"Revenue ($B)": [revenue_by_year[y] / 1_000_000_000 for y in years], "Net Income ($B)": [income_by_year[y] / 1_000_000_000 for y in years], "Operating Cash Flow ($B)": [ocf_by_year[y] / 1_000_000_000 for y in years]}, index=[str(y) for y in years])
         st.line_chart(trend, y_label="USD billions")
     else:
         st.info("Not enough overlapping annual revenue, net income, and operating cash flow data to display a trend.")
@@ -260,9 +221,8 @@ def render_key_metrics(result):
     financial_data = result.get("financial_data", {}) or {}
 
     def value_for_year(key):
-        values = normalize_annual_data(financial_data.get(key, []))
         target = result.get("data_period_year")
-        for item in values:
+        for item in normalize_annual_data(financial_data.get(key, [])):
             if item.get("year") == target:
                 return item.get("value")
         return None
@@ -300,20 +260,12 @@ def render_key_metrics(result):
 
     st.header("Risk dimensions")
     dimensions = result.get("risk_dimensions", {})
-    dimension_rows = [{"Dimension": name.replace("_", " ").title(), "Risk level": "N/A" if value is None else value} for name, value in dimensions.items()]
-    st.dataframe(dimension_rows, hide_index=True, width="stretch")
+    st.dataframe([{"Dimension": name.replace("_", " ").title(), "Risk level": "N/A" if value is None else value} for name, value in dimensions.items()], hide_index=True, width="stretch")
     st.subheader("How the risk score is calculated")
     st.caption("Available dimensions are capped at 100 and weighted by the prototype model. Unavailable dimensions are excluded from the denominator.")
     breakdown = []
     for item in result.get("score_breakdown", []):
-        breakdown.append({
-            "Dimension": item.get("dimension", "N/A").replace("_", " ").title(),
-            "Risk level": "N/A" if item.get("risk_level") is None else item.get("risk_level"),
-            "Model weight": f"{item.get('weight', 0)}%",
-            "Normalized weight": f"{item.get('normalized_weight', 0):.2f}%",
-            "Score contribution": "N/A" if item.get("contribution") is None else item.get("contribution"),
-            "Data available": "Yes" if item.get("available") else "No",
-        })
+        breakdown.append({"Dimension": item.get("dimension", "N/A").replace("_", " ").title(), "Risk level": "N/A" if item.get("risk_level") is None else item.get("risk_level"), "Model weight": f"{item.get('weight', 0)}%", "Normalized weight": f"{item.get('normalized_weight', 0):.2f}%", "Score contribution": "N/A" if item.get("contribution") is None else item.get("contribution"), "Data available": "Yes" if item.get("available") else "No"})
     st.dataframe(breakdown, hide_index=True, width="stretch")
 
 
@@ -328,23 +280,10 @@ def render_compare(result):
     tickers = [p.get("ticker") for p in peer.get("peers", []) if p.get("ticker")]
     if tickers:
         st.write("**Peers:** " + ", ".join(tickers))
-    labels = {
-        "receivables_to_revenue": "Receivables / Revenue",
-        "dso": "DSO",
-        "accrual_ratio": "Accrual Ratio",
-        "current_ratio": "Current Ratio",
-        "ocf_conversion": "OCF Conversion",
-    }
+    labels = {"receivables_to_revenue": "Receivables / Revenue", "dso": "DSO", "accrual_ratio": "Accrual Ratio", "current_ratio": "Current Ratio", "ocf_conversion": "OCF Conversion"}
     rows = []
     for metric, values in peer.get("metrics", {}).items():
-        rows.append({
-            "Metric": labels.get(metric, metric),
-            "Company": values.get("company_value", "N/A"),
-            "Peer median": values.get("peer_median", "N/A"),
-            "Risk direction": "Higher is riskier" if values.get("risk_direction") == "higher" else "Lower is riskier" if values.get("risk_direction") == "lower" else "N/A",
-            "Robust z-score": values.get("z_score", "N/A"),
-            "Metric risk level": values.get("risk_level", "N/A"),
-        })
+        rows.append({"Metric": labels.get(metric, metric), "Company": values.get("company_value", "N/A"), "Peer median": values.get("peer_median", "N/A"), "Risk direction": "Higher is riskier" if values.get("risk_direction") == "higher" else "Lower is riskier" if values.get("risk_direction") == "lower" else "N/A", "Robust z-score": values.get("z_score", "N/A"), "Metric risk level": values.get("risk_level", "N/A")})
     if rows:
         st.dataframe(rows, hide_index=True, width="stretch")
     st.metric("Peer deviation risk level", f"{float(peer.get('risk_score', 0)):.2f}/100")
@@ -359,7 +298,6 @@ def render_saved_reports(result):
     company_name = st.session_state.get("analysis_company_name") or "Company"
     cik = st.session_state.get("analysis_cik")
     report_key = str(ticker)
-
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Generate PDF report", key="generate_pdf", use_container_width=True):
@@ -381,15 +319,12 @@ def render_saved_reports(result):
         st.download_button("Download PDF report", data=files["pdf"], file_name=f"{ticker}_financial_reporting_risk_report.pdf", mime="application/pdf", key="download_pdf")
     if files.get("excel"):
         st.download_button("Download Excel report", data=files["excel"], file_name=f"{ticker}_financial_reporting_risk_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_excel")
-
     if not files:
         st.info("No reports have been generated for this analysis yet.")
 
 
 def render_page():
     page = st.session_state.nav_page
-    result = st.session_state.analysis_result
-
     if page == "home":
         render_home()
         return
@@ -398,19 +333,26 @@ def render_page():
         st.markdown("<div class='eyebrow'>COMPANY ANALYSIS</div>", unsafe_allow_html=True)
         st.title("Company Analysis")
         render_search_form("company_analysis")
-    elif result is None:
-        st.title(dict(NAV_ITEMS)[page].split("  ", 1)[-1])
-        st.info("Run a company analysis from Home or Company Analysis first. The result will remain available while you switch sections.")
-        return
-
-    if page == "company_analysis":
-        result = st.session_state.analysis_result
+        # Re-read state after the form. The submitted form may have replaced a
+        # previous result or created a new one during this same Streamlit run.
         if st.session_state.analysis_error:
             st.error(st.session_state.analysis_error)
             st.info("Enter another company above to retry.")
             return
+        result = st.session_state.analysis_result
+        if result is None:
+            st.info("Enter a company name or ticker above to begin.")
+            return
         render_company_analysis(result)
-    elif page == "financial_statements":
+        return
+
+    result = st.session_state.analysis_result
+    if result is None:
+        st.title(dict(NAV_ITEMS)[page].split("  ", 1)[-1])
+        st.info("Run a company analysis from Home or Company Analysis first. The result will remain available while you switch sections.")
+        return
+
+    if page == "financial_statements":
         st.title("Financial Statements")
         render_financial_statements(result)
     elif page == "key_metrics":
