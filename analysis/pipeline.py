@@ -18,7 +18,7 @@ from data.filings import (
 from data.normalizer import normalize_annual_data
 
 
-ANNUAL_FORMS = {"10-K", "20-F", "40-F"}
+ANNUAL_FORMS = {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}
 
 
 def _latest_two(data):
@@ -50,20 +50,28 @@ def _filing_year(filing):
 
 
 def find_latest_annual_filing(submissions, cik=None):
-    """Find the latest annual report filed with the SEC, including 20-F."""
+    """Find the latest annual report filed with the SEC, including amendments."""
     recent = submissions.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
+    candidates = []
+
     for i, form in enumerate(forms):
         if form not in ANNUAL_FORMS:
             continue
-        accession_number = recent["accessionNumber"][i]
-        primary_document = recent["primaryDocument"][i]
+        try:
+            accession_number = recent["accessionNumber"][i]
+            primary_document = recent["primaryDocument"][i]
+            filing_date = recent["filingDate"][i]
+            report_date = recent["reportDate"][i]
+        except (KeyError, IndexError):
+            continue
+
         filing = {
             "form": form,
             "accession_number": accession_number,
             "primary_document": primary_document,
-            "filing_date": recent["filingDate"][i],
-            "report_date": recent["reportDate"][i],
+            "filing_date": filing_date,
+            "report_date": report_date,
         }
         if cik is not None:
             clean_accession = accession_number.replace("-", "")
@@ -71,8 +79,21 @@ def find_latest_annual_filing(submissions, cik=None):
                 f"https://www.sec.gov/Archives/edgar/data/"
                 f"{int(str(cik).zfill(10))}/{clean_accession}/{primary_document}"
             )
-        return filing
-    return None
+        candidates.append(filing)
+
+    if not candidates:
+        return None
+
+    # SEC submission history is normally newest-first, but do not depend on
+    # array order. Prefer the latest fiscal period, then the latest filing date,
+    # and finally an amendment when all dates are otherwise equal.
+    def sort_key(filing):
+        report_date = str(filing.get("report_date") or "")
+        filing_date = str(filing.get("filing_date") or "")
+        is_amendment = filing.get("form", "").endswith("/A")
+        return (report_date, filing_date, is_amendment)
+
+    return max(candidates, key=sort_key)
 
 
 # Backward-compatible name used by existing tests/imports.
